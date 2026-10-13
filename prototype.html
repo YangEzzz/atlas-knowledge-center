@@ -1,0 +1,1502 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Atlas 研发知识中心原型</title>
+    <style>
+      :root {
+        --bg: #f6f7f8;
+        --panel: #ffffff;
+        --panel-soft: #f9fafb;
+        --text: #1f2933;
+        --muted: #697586;
+        --line: #d9dee7;
+        --line-soft: #e8edf3;
+        --primary: #256f63;
+        --primary-soft: #e3f3ef;
+        --accent: #b7791f;
+        --danger: #b42318;
+        --blue: #2f6fb0;
+        --radius: 8px;
+        --shadow: 0 10px 24px rgba(31, 41, 51, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--text);
+        background: var(--bg);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Microsoft YaHei", Arial, sans-serif;
+        line-height: 1.5;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: 56px 1fr;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 0 24px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(10px);
+      }
+
+      .brand {
+        min-width: 132px;
+        font-size: 17px;
+        font-weight: 750;
+        letter-spacing: 0;
+        white-space: nowrap;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .nav::-webkit-scrollbar {
+        display: none;
+      }
+
+      .nav-btn {
+        height: 34px;
+        padding: 0 12px;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        color: var(--muted);
+        background: transparent;
+        white-space: nowrap;
+      }
+
+      .nav-btn:hover {
+        color: var(--text);
+        background: var(--panel-soft);
+      }
+
+      .nav-btn.active {
+        color: var(--primary);
+        border-color: #b8ddd3;
+        background: var(--primary-soft);
+        font-weight: 650;
+      }
+
+      .top-search {
+        margin-left: auto;
+        width: min(360px, 28vw);
+        min-width: 180px;
+      }
+
+      .search-field {
+        width: 100%;
+        height: 36px;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: var(--text);
+        background: #fff;
+        outline: none;
+      }
+
+      .search-field:focus {
+        border-color: #84bdb0;
+        box-shadow: 0 0 0 3px rgba(37, 111, 99, 0.14);
+      }
+
+      .user {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .avatar {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        border-radius: 50%;
+        color: #fff;
+        background: var(--primary);
+        font-size: 13px;
+        font-weight: 750;
+      }
+
+      .shell {
+        width: min(1440px, 100%);
+        margin: 0 auto;
+        padding: 22px 24px 40px;
+      }
+
+      .page {
+        display: none;
+      }
+
+      .page.active {
+        display: block;
+      }
+
+      .page-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 16px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 24px;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: 17px;
+        letter-spacing: 0;
+      }
+
+      h3 {
+        font-size: 15px;
+        letter-spacing: 0;
+      }
+
+      .subtle {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .btn {
+        min-height: 34px;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: var(--text);
+        background: #fff;
+      }
+
+      .btn:hover {
+        border-color: #b7c2cf;
+        background: var(--panel-soft);
+      }
+
+      .btn.primary {
+        color: #fff;
+        border-color: var(--primary);
+        background: var(--primary);
+      }
+
+      .btn.primary:hover {
+        background: #1f5f55;
+      }
+
+      .btn.text {
+        min-height: auto;
+        padding: 0;
+        border: 0;
+        color: var(--blue);
+        background: transparent;
+      }
+
+      .btn.danger {
+        color: var(--danger);
+      }
+
+      .grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .grid.two {
+        grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      }
+
+      .grid.three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .panel {
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .panel-body {
+        padding: 16px;
+      }
+
+      .hero-search {
+        padding: 22px;
+      }
+
+      .hero-search .search-field {
+        height: 46px;
+        font-size: 15px;
+      }
+
+      .quick-row {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .quick {
+        min-height: 74px;
+        padding: 12px;
+        border: 1px solid var(--line-soft);
+        border-radius: 8px;
+        background: var(--panel-soft);
+      }
+
+      .quick strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+
+      .quick span {
+        display: block;
+        margin-top: 6px;
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 12px;
+        border: 1px solid var(--line-soft);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .item-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        font-weight: 650;
+      }
+
+      .item-title span:first-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .item-meta {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        padding: 0 8px;
+        border-radius: 999px;
+        color: var(--primary);
+        background: var(--primary-soft);
+        font-size: 12px;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      .badge.warn {
+        color: #915d10;
+        background: #fff4dc;
+      }
+
+      .badge.blue {
+        color: var(--blue);
+        background: #eaf2fb;
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .filters input,
+      .filters select {
+        height: 36px;
+        min-width: 160px;
+        padding: 0 10px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--line-soft);
+        text-align: left;
+        vertical-align: middle;
+      }
+
+      th {
+        color: var(--muted);
+        background: #fbfcfd;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      td {
+        font-size: 13px;
+      }
+
+      .nowrap {
+        white-space: nowrap;
+      }
+
+      .people {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+
+      .person {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 0 8px;
+        border: 1px solid var(--line-soft);
+        border-radius: 999px;
+        background: #fff;
+        font-size: 12px;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 4px;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--line-soft);
+        overflow-x: auto;
+      }
+
+      .tab-btn {
+        height: 42px;
+        padding: 0 12px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        color: var(--muted);
+        background: transparent;
+        white-space: nowrap;
+      }
+
+      .tab-btn.active {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+        font-weight: 700;
+      }
+
+      .tab-panel {
+        display: none;
+        padding: 16px;
+      }
+
+      .tab-panel.active {
+        display: block;
+      }
+
+      .project-hero {
+        margin-bottom: 14px;
+        padding: 18px;
+      }
+
+      .project-hero-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .project-title-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .resource-strip {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .resource-card {
+        min-height: 96px;
+        padding: 12px;
+        border: 1px solid var(--line-soft);
+        border-radius: 8px;
+        background: var(--panel-soft);
+      }
+
+      .resource-card .url {
+        margin-top: 8px;
+        overflow: hidden;
+        color: var(--blue);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .resource-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        font-size: 12px;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 240px;
+        gap: 14px;
+      }
+
+      .doc-body {
+        min-height: 420px;
+        padding: 22px;
+      }
+
+      .doc-body h2 {
+        margin-top: 20px;
+        margin-bottom: 8px;
+      }
+
+      .doc-body p,
+      .doc-body li {
+        color: #364152;
+        font-size: 14px;
+      }
+
+      .toc {
+        position: sticky;
+        top: 76px;
+        align-self: start;
+        padding: 14px;
+      }
+
+      .toc a {
+        display: block;
+        padding: 7px 0;
+        color: var(--muted);
+        font-size: 13px;
+        text-decoration: none;
+      }
+
+      .editor {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        min-height: 420px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .editor textarea {
+        width: 100%;
+        min-height: 420px;
+        padding: 16px;
+        border: 0;
+        border-right: 1px solid var(--line);
+        resize: none;
+        outline: none;
+      }
+
+      .preview {
+        padding: 16px;
+        background: #fff;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .field {
+        display: grid;
+        gap: 5px;
+      }
+
+      .field label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .field input,
+      .field select,
+      .field textarea {
+        width: 100%;
+        min-height: 36px;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+      }
+
+      .field textarea {
+        min-height: 98px;
+      }
+
+      .empty {
+        padding: 26px;
+        border: 1px dashed #c9d2dd;
+        border-radius: 8px;
+        color: var(--muted);
+        text-align: center;
+        background: #fbfcfd;
+      }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(31, 41, 51, 0.28);
+      }
+
+      .modal.open {
+        display: flex;
+      }
+
+      .dialog {
+        width: min(680px, 100%);
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 22px 60px rgba(31, 41, 51, 0.22);
+      }
+
+      .dialog-head,
+      .dialog-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .dialog-foot {
+        justify-content: flex-end;
+        border-top: 1px solid var(--line-soft);
+        border-bottom: 0;
+      }
+
+      .dialog-body {
+        padding: 16px;
+      }
+
+      @media (max-width: 980px) {
+        .topbar {
+          padding: 0 14px;
+        }
+
+        .shell {
+          padding: 16px 14px 28px;
+        }
+
+        .grid.two,
+        .grid.three,
+        .split,
+        .editor {
+          grid-template-columns: 1fr;
+        }
+
+        .quick-row,
+        .resource-strip {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .top-search {
+          display: none;
+        }
+
+        table {
+          min-width: 760px;
+        }
+
+        .table-wrap {
+          overflow-x: auto;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .brand {
+          min-width: auto;
+        }
+
+        .user span {
+          display: none;
+        }
+
+        .page-head,
+        .project-hero-top {
+          display: grid;
+        }
+
+        .quick-row,
+        .resource-strip,
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">Atlas 研发知识中心</div>
+        <nav class="nav" aria-label="主导航">
+          <button class="nav-btn active" data-page="home">首页</button>
+          <button class="nav-btn" data-page="projects">项目库</button>
+          <button class="nav-btn" data-page="docs">文档库</button>
+          <button class="nav-btn" data-page="links">公共入口</button>
+          <button class="nav-btn" data-page="favorites">我的收藏</button>
+          <button class="nav-btn" data-page="recent">最近访问</button>
+          <button class="nav-btn" data-page="manage">管理中心</button>
+        </nav>
+        <div class="top-search">
+          <input class="search-field" placeholder="搜索项目、GitLab、文档" />
+        </div>
+        <div class="user">
+          <span class="avatar">YT</span>
+          <span>研发用户</span>
+        </div>
+      </header>
+
+      <main class="shell">
+        <section class="page active" id="home">
+          <div class="page-head">
+            <div>
+              <h1>首页</h1>
+              <p class="subtle">项目、入口、文档和最近使用内容集中在这里。</p>
+            </div>
+            <div class="toolbar">
+              <button class="btn primary" data-open-modal="project">新建项目</button>
+              <button class="btn" data-open-modal="resource">新增入口</button>
+            </div>
+          </div>
+
+          <div class="panel hero-search">
+            <input
+              class="search-field"
+              placeholder="搜索项目、GitLab、测试地址、线上地址、文档或负责人"
+            />
+            <div class="quick-row">
+              <div class="quick">
+                <strong>云手机用户端</strong>
+                <span>用户端 / 王前端、赵后端</span>
+              </div>
+              <div class="quick">
+                <strong>云手机后台</strong>
+                <span>后台 / 测试地址已维护</span>
+              </div>
+              <div class="quick">
+                <strong>GitLab</strong>
+                <span>公共入口 / gitlab.company.local</span>
+              </div>
+              <div class="quick">
+                <strong>发布平台</strong>
+                <span>公共入口 / deploy.company.local</span>
+              </div>
+              <div class="quick">
+                <strong>环境说明</strong>
+                <span>文档 / 云手机用户端</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid two" style="margin-top: 14px">
+            <div class="grid">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>我的常用</h2>
+                  <button class="btn text" data-page-jump="favorites">查看全部</button>
+                </div>
+                <div class="panel-body list">
+                  <div class="item">
+                    <div>
+                      <div class="item-title">
+                        <span>云手机用户端测试环境</span><span class="badge">测试地址</span>
+                      </div>
+                      <div class="item-meta">cloud-phone-user / test.user.company.local</div>
+                    </div>
+                    <div class="toolbar">
+                      <button class="btn">打开</button><button class="btn">复制</button>
+                    </div>
+                  </div>
+                  <div class="item">
+                    <div>
+                      <div class="item-title">
+                        <span>云手机后台 GitLab</span><span class="badge blue">GitLab</span>
+                      </div>
+                      <div class="item-meta">cloud-phone-admin / gitlab.company.local/admin</div>
+                    </div>
+                    <div class="toolbar">
+                      <button class="btn">打开</button><button class="btn">复制</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>项目总览</h2>
+                  <button class="btn text" data-page-jump="projects">进入项目库</button>
+                </div>
+                <div class="panel-body">
+                  <div class="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>项目</th>
+                          <th>类型</th>
+                          <th>负责人</th>
+                          <th>更新时间</th>
+                          <th class="nowrap">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>云手机用户端</td>
+                          <td><span class="badge">用户端</span></td>
+                          <td>王前端、赵后端</td>
+                          <td>今天 10:20</td>
+                          <td><button class="btn text" data-page-jump="project-detail">详情</button></td>
+                        </tr>
+                        <tr>
+                          <td>云手机后台</td>
+                          <td><span class="badge">后台</span></td>
+                          <td>陈前端、赵后端</td>
+                          <td>昨天 18:02</td>
+                          <td><button class="btn text" data-page-jump="project-detail">详情</button></td>
+                        </tr>
+                        <tr>
+                          <td>官网</td>
+                          <td><span class="badge">官网</span></td>
+                          <td>李前端</td>
+                          <td>05-29 14:11</td>
+                          <td><button class="btn text" data-page-jump="project-detail">详情</button></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>最近访问</h2>
+                  <button class="btn text" data-page-jump="recent">查看全部</button>
+                </div>
+                <div class="panel-body list">
+                  <div class="item">
+                    <div>
+                      <div class="item-title"><span>部署说明</span><span class="badge warn">可能过期</span></div>
+                      <div class="item-meta">云手机用户端 / 11 分钟前</div>
+                    </div>
+                    <button class="btn text" data-page-jump="doc-detail">查看</button>
+                  </div>
+                  <div class="item">
+                    <div>
+                      <div class="item-title"><span>API 文档</span><span class="badge">资源入口</span></div>
+                      <div class="item-meta">云手机后台 / 32 分钟前</div>
+                    </div>
+                    <button class="btn text">打开</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>公共入口</h2>
+                  <button class="btn text" data-page-jump="links">查看全部</button>
+                </div>
+                <div class="panel-body list">
+                  <div class="item">
+                    <div>
+                      <div class="item-title"><span>GitLab</span><span class="badge blue">代码</span></div>
+                      <div class="item-meta">gitlab.company.local</div>
+                    </div>
+                    <button class="btn">打开</button>
+                  </div>
+                  <div class="item">
+                    <div>
+                      <div class="item-title"><span>监控平台</span><span class="badge">监控</span></div>
+                      <div class="item-meta">monitor.company.local</div>
+                    </div>
+                    <button class="btn">打开</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>最近更新</h2>
+                </div>
+                <div class="panel-body list">
+                  <div class="item">
+                    <div>
+                      <div class="item-title"><span>云手机用户端新增测试地址</span></div>
+                      <div class="item-meta">王前端 / 今天 10:20</div>
+                    </div>
+                  </div>
+                  <div class="item">
+                    <div>
+                      <div class="item-title"><span>环境说明更新图片</span></div>
+                      <div class="item-meta">赵后端 / 昨天 19:44</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="projects">
+          <div class="page-head">
+            <div>
+              <h1>项目库</h1>
+              <p class="subtle">浏览和维护公司内部业务系统。</p>
+            </div>
+            <button class="btn primary" data-open-modal="project">新建项目</button>
+          </div>
+          <div class="panel">
+            <div class="panel-body">
+              <div class="filters">
+                <input placeholder="搜索项目、关键词、负责人" />
+                <select>
+                  <option>全部类型</option>
+                  <option>前端</option>
+                  <option>后端</option>
+                  <option>后台</option>
+                  <option>用户端</option>
+                  <option>官网</option>
+                  <option>移动端</option>
+                  <option>小程序</option>
+                </select>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>项目名称</th>
+                      <th>类型</th>
+                      <th>简介</th>
+                      <th>前端负责人</th>
+                      <th>后端负责人</th>
+                      <th>测试负责人</th>
+                      <th>更新时间</th>
+                      <th class="nowrap">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>云手机用户端</td>
+                      <td><span class="badge">用户端</span></td>
+                      <td>云手机用户访问和购买入口</td>
+                      <td><div class="people"><span class="person">王前端</span><span class="person">林前端</span></div></td>
+                      <td><div class="people"><span class="person">赵后端</span></div></td>
+                      <td><div class="people"><span class="person">刘测试</span></div></td>
+                      <td>今天 10:20</td>
+                      <td class="nowrap">
+                        <button class="btn text" data-page-jump="project-detail">详情</button>
+                        <button class="btn text" data-open-modal="project">编辑</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>云手机后台</td>
+                      <td><span class="badge">后台</span></td>
+                      <td>运营和客服使用的管理后台</td>
+                      <td><div class="people"><span class="person">陈前端</span></div></td>
+                      <td><div class="people"><span class="person">赵后端</span><span class="person">周后端</span></div></td>
+                      <td><div class="people"><span class="person">刘测试</span></div></td>
+                      <td>昨天 18:02</td>
+                      <td class="nowrap">
+                        <button class="btn text" data-page-jump="project-detail">详情</button>
+                        <button class="btn text" data-open-modal="project">编辑</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>官网</td>
+                      <td><span class="badge">官网</span></td>
+                      <td>公司官网和品牌展示</td>
+                      <td><div class="people"><span class="person">李前端</span></div></td>
+                      <td><div class="people"><span class="person">-</span></div></td>
+                      <td><div class="people"><span class="person">孙测试</span></div></td>
+                      <td>05-29 14:11</td>
+                      <td class="nowrap">
+                        <button class="btn text" data-page-jump="project-detail">详情</button>
+                        <button class="btn text" data-open-modal="project">编辑</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="project-detail">
+          <div class="panel project-hero">
+            <div class="project-hero-top">
+              <div>
+                <div class="project-title-row">
+                  <h1>云手机用户端</h1>
+                  <span class="badge">用户端</span>
+                  <span class="badge blue">已收藏</span>
+                </div>
+                <p class="subtle">云手机用户访问、购买、续费和设备管理入口。关键词：云机、cloud phone、用户 H5。</p>
+              </div>
+              <div class="toolbar">
+                <button class="btn">取消收藏</button>
+                <button class="btn" data-open-modal="project">编辑项目</button>
+                <button class="btn danger">删除</button>
+              </div>
+            </div>
+            <div class="resource-strip">
+              <div class="resource-card">
+                <span class="badge">线上地址</span>
+                <div class="url">https://user.company.com</div>
+                <div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div>
+              </div>
+              <div class="resource-card">
+                <span class="badge">测试地址</span>
+                <div class="url">https://test-user.company.local</div>
+                <div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div>
+              </div>
+              <div class="resource-card">
+                <span class="badge blue">GitLab</span>
+                <div class="url">gitlab.company.local/cloud-phone/user-web</div>
+                <div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div>
+              </div>
+              <div class="resource-card">
+                <span class="badge">原型地址</span>
+                <div class="url">prototype.company.local/cloud-phone</div>
+                <div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div>
+              </div>
+              <div class="resource-card">
+                <span class="badge">API 文档</span>
+                <div class="url">api.company.local/cloud-phone</div>
+                <div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="tabs" role="tablist">
+              <button class="tab-btn active" data-tab="overview">概览</button>
+              <button class="tab-btn" data-tab="resources">资源入口</button>
+              <button class="tab-btn" data-tab="project-docs">文档</button>
+              <button class="tab-btn" data-tab="private-note">我的私有笔记</button>
+              <button class="tab-btn" data-tab="changes">变更记录</button>
+            </div>
+            <div class="tab-panel active" id="overview">
+              <div class="grid three">
+                <div class="panel">
+                  <div class="panel-head"><h2>负责人</h2></div>
+                  <div class="panel-body list">
+                    <div class="item"><div><strong>前端</strong><div class="item-meta">王前端、林前端</div></div></div>
+                    <div class="item"><div><strong>后端</strong><div class="item-meta">赵后端</div></div></div>
+                    <div class="item"><div><strong>测试</strong><div class="item-meta">刘测试</div></div></div>
+                  </div>
+                </div>
+                <div class="panel">
+                  <div class="panel-head"><h2>资料摘要</h2></div>
+                  <div class="panel-body list">
+                    <div class="item"><div><strong>资源入口</strong><div class="item-meta">5 个入口已维护</div></div></div>
+                    <div class="item"><div><strong>项目文档</strong><div class="item-meta">7 篇文档，1 篇可能过期</div></div></div>
+                    <div class="item"><div><strong>最近更新</strong><div class="item-meta">今天 10:20 / 王前端</div></div></div>
+                  </div>
+                </div>
+                <div class="panel">
+                  <div class="panel-head"><h2>最近变更</h2></div>
+                  <div class="panel-body list">
+                    <div class="item"><div><strong>新增测试地址</strong><div class="item-meta">王前端 / 今天 10:20</div></div></div>
+                    <div class="item"><div><strong>更新部署说明</strong><div class="item-meta">赵后端 / 昨天 19:44</div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="tab-panel" id="resources">
+              <div class="page-head">
+                <div><h2>资源入口</h2><p class="subtle">维护线上、测试、GitLab、原型、API 文档等项目入口。</p></div>
+                <button class="btn primary" data-open-modal="resource">新增资源入口</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>名称</th><th>类型</th><th>URL</th><th>说明</th><th>更新时间</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>用户端线上</td><td><span class="badge">线上地址</span></td><td>https://user.company.com</td><td>正式用户访问入口</td><td>今天 10:20</td><td class="nowrap"><button class="btn text">打开</button> <button class="btn text">复制</button> <button class="btn text" data-open-modal="resource">编辑</button></td></tr>
+                    <tr><td>用户端测试</td><td><span class="badge">测试地址</span></td><td>https://test-user.company.local</td><td>研发联调用</td><td>今天 10:20</td><td class="nowrap"><button class="btn text">打开</button> <button class="btn text">复制</button> <button class="btn text" data-open-modal="resource">编辑</button></td></tr>
+                    <tr><td>前端仓库</td><td><span class="badge blue">GitLab 地址</span></td><td>gitlab.company.local/cloud-phone/user-web</td><td>Vue 前端工程</td><td>昨天 18:02</td><td class="nowrap"><button class="btn text">打开</button> <button class="btn text">复制</button> <button class="btn text" data-open-modal="resource">编辑</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="tab-panel" id="project-docs">
+              <div class="page-head">
+                <div><h2>项目文档</h2><p class="subtle">项目介绍、环境说明、部署说明、FAQ 和开发规范。</p></div>
+                <button class="btn primary" data-page-jump="doc-edit">新建文档</button>
+              </div>
+              <div class="list">
+                <div class="item">
+                  <div><div class="item-title"><span>环境说明</span><span class="badge">环境说明</span></div><div class="item-meta">赵后端 / 昨天 19:44 / 云手机用户端</div></div>
+                  <div class="toolbar"><button class="btn text" data-page-jump="doc-detail">查看</button><button class="btn text" data-page-jump="doc-edit">编辑</button></div>
+                </div>
+                <div class="item">
+                  <div><div class="item-title"><span>部署说明</span><span class="badge warn">可能过期</span></div><div class="item-meta">赵后端 / 03-02 16:12 / 云手机用户端</div></div>
+                  <div class="toolbar"><button class="btn text" data-page-jump="doc-detail">查看</button><button class="btn text" data-page-jump="doc-edit">编辑</button></div>
+                </div>
+              </div>
+            </div>
+            <div class="tab-panel" id="private-note">
+              <div class="page-head">
+                <div><h2>我的私有笔记</h2><p class="subtle">只对当前用户可见。</p></div>
+                <button class="btn primary">保存</button>
+              </div>
+              <textarea class="search-field" style="min-height: 260px; padding-top: 12px">测试账号：user_test_01
+后台权限：找刘测试开通
+常用命令：pnpm dev</textarea>
+            </div>
+            <div class="tab-panel" id="changes">
+              <div class="filters">
+                <select><option>全部对象</option><option>项目</option><option>资源入口</option><option>文档</option></select>
+                <select><option>全部操作</option><option>创建</option><option>修改</option><option>删除</option><option>恢复</option></select>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>时间</th><th>操作人</th><th>操作类型</th><th>对象</th><th>摘要</th></tr></thead>
+                  <tbody>
+                    <tr><td>今天 10:20</td><td>王前端</td><td>修改</td><td>测试地址</td><td>更新测试环境 URL</td></tr>
+                    <tr><td>昨天 19:44</td><td>赵后端</td><td>修改</td><td>环境说明</td><td>补充部署截图</td></tr>
+                    <tr><td>昨天 18:02</td><td>陈前端</td><td>创建</td><td>GitLab 地址</td><td>新增前端仓库入口</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="docs">
+          <div class="page-head">
+            <div><h1>文档库</h1><p class="subtle">跨项目搜索和浏览所有 Markdown 文档。</p></div>
+            <button class="btn primary" data-page-jump="doc-edit">新建文档</button>
+          </div>
+          <div class="panel">
+            <div class="panel-body">
+              <div class="filters">
+                <input placeholder="搜索标题、正文、项目" />
+                <select><option>全部类型</option><option>项目介绍</option><option>环境说明</option><option>部署说明</option><option>API 说明</option><option>FAQ</option></select>
+                <select><option>全部状态</option><option>正常</option><option>可能过期</option></select>
+              </div>
+              <div class="list">
+                <div class="item">
+                  <div><div class="item-title"><span>环境说明</span><span class="badge">环境说明</span></div><div class="item-meta">云手机用户端 / 赵后端 / 昨天 19:44</div></div>
+                  <div class="toolbar"><button class="btn text" data-page-jump="doc-detail">查看</button><button class="btn text" data-page-jump="doc-edit">编辑</button></div>
+                </div>
+                <div class="item">
+                  <div><div class="item-title"><span>部署说明</span><span class="badge warn">可能过期</span></div><div class="item-meta">云手机用户端 / 赵后端 / 03-02 16:12</div></div>
+                  <div class="toolbar"><button class="btn text" data-page-jump="doc-detail">查看</button><button class="btn text" data-page-jump="doc-edit">编辑</button></div>
+                </div>
+                <div class="item">
+                  <div><div class="item-title"><span>开发规范</span><span class="badge">开发规范</span></div><div class="item-meta">云手机后台 / 陈前端 / 05-29 14:11</div></div>
+                  <div class="toolbar"><button class="btn text" data-page-jump="doc-detail">查看</button><button class="btn text" data-page-jump="doc-edit">编辑</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="doc-detail">
+          <div class="page-head">
+            <div>
+              <h1>环境说明</h1>
+              <p class="subtle">云手机用户端 / 环境说明 / 赵后端更新于昨天 19:44</p>
+            </div>
+            <div class="toolbar">
+              <button class="btn">收藏</button>
+              <button class="btn" data-page-jump="doc-edit">编辑</button>
+              <button class="btn" data-page-jump="versions">版本历史</button>
+              <button class="btn danger">删除</button>
+            </div>
+          </div>
+          <div class="split">
+            <article class="panel doc-body">
+              <h2>测试环境</h2>
+              <p>测试环境地址为 https://test-user.company.local，供研发联调和测试验收使用。</p>
+              <h2>线上环境</h2>
+              <p>线上环境地址为 https://user.company.com，发布前需要确认发布单和回归结果。</p>
+              <h2>访问方式</h2>
+              <ul>
+                <li>测试账号由测试负责人开通。</li>
+                <li>后台权限需要在权限系统申请。</li>
+                <li>接口联调以 API 文档中的测试环境为准。</li>
+              </ul>
+              <h2>注意事项</h2>
+              <p>涉及用户数据的操作需要确认数据环境，避免误操作线上数据。</p>
+            </article>
+            <aside class="panel toc">
+              <h3>目录</h3>
+              <a href="#">测试环境</a>
+              <a href="#">线上环境</a>
+              <a href="#">访问方式</a>
+              <a href="#">注意事项</a>
+            </aside>
+          </div>
+        </section>
+
+        <section class="page" id="doc-edit">
+          <div class="page-head">
+            <div><h1>编辑文档</h1><p class="subtle">保存后生成新的版本记录。</p></div>
+            <div class="toolbar"><button class="btn" data-page-jump="doc-detail">取消</button><button class="btn primary" data-page-jump="doc-detail">保存</button></div>
+          </div>
+          <div class="panel">
+            <div class="panel-body">
+              <div class="form-grid">
+                <div class="field"><label>标题</label><input value="环境说明" /></div>
+                <div class="field"><label>所属项目</label><select><option>云手机用户端</option><option>云手机后台</option></select></div>
+                <div class="field"><label>文档类型</label><select><option>环境说明</option><option>部署说明</option><option>API 说明</option></select></div>
+              </div>
+              <div class="editor">
+                <textarea>## 测试环境
+
+测试环境地址为 https://test-user.company.local
+
+## 线上环境
+
+线上环境地址为 https://user.company.com
+
+## 注意事项
+
+- 测试账号由测试负责人开通
+- 后台权限需要在权限系统申请</textarea>
+                <div class="preview">
+                  <h2>测试环境</h2>
+                  <p>测试环境地址为 https://test-user.company.local</p>
+                  <h2>线上环境</h2>
+                  <p>线上环境地址为 https://user.company.com</p>
+                  <h2>注意事项</h2>
+                  <ul><li>测试账号由测试负责人开通</li><li>后台权限需要在权限系统申请</li></ul>
+                </div>
+              </div>
+              <div class="toolbar" style="margin-top: 12px">
+                <button class="btn">上传图片</button>
+                <button class="btn">插入模板</button>
+                <button class="btn">预览</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="versions">
+          <div class="page-head">
+            <div><h1>文档版本历史</h1><p class="subtle">环境说明 / 云手机用户端</p></div>
+            <button class="btn" data-page-jump="doc-detail">返回文档</button>
+          </div>
+          <div class="panel">
+            <div class="panel-body table-wrap">
+              <table>
+                <thead><tr><th>版本</th><th>修改人</th><th>修改时间</th><th>摘要</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr><td>v4</td><td>赵后端</td><td>昨天 19:44</td><td>补充部署截图和注意事项</td><td><button class="btn text">查看</button></td></tr>
+                  <tr><td>v3</td><td>赵后端</td><td>05-12 11:08</td><td>更新测试环境地址</td><td><button class="btn text">恢复</button></td></tr>
+                  <tr><td>v2</td><td>王前端</td><td>04-21 15:30</td><td>补充线上环境说明</td><td><button class="btn text">恢复</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="links">
+          <div class="page-head">
+            <div><h1>公共入口</h1><p class="subtle">公司级常用系统入口。</p></div>
+            <button class="btn primary" data-open-modal="public-link">新增公共入口</button>
+          </div>
+          <div class="panel">
+            <div class="panel-body">
+              <div class="filters"><input placeholder="搜索入口名称或 URL" /><select><option>全部类型</option><option>代码</option><option>发布</option><option>监控</option><option>需求</option></select></div>
+              <div class="grid three">
+                <div class="quick"><strong>GitLab</strong><span>代码 / gitlab.company.local</span><div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div></div>
+                <div class="quick"><strong>发布平台</strong><span>发布 / deploy.company.local</span><div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div></div>
+                <div class="quick"><strong>监控平台</strong><span>监控 / monitor.company.local</span><div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div></div>
+                <div class="quick"><strong>日志平台</strong><span>日志 / log.company.local</span><div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div></div>
+                <div class="quick"><strong>需求平台</strong><span>需求 / pm.company.local</span><div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div></div>
+                <div class="quick"><strong>API 平台</strong><span>接口 / api.company.local</span><div class="resource-actions"><button class="btn text">打开</button><button class="btn text">复制</button></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="favorites">
+          <div class="page-head">
+            <div><h1>我的收藏</h1><p class="subtle">当前用户收藏的项目、资源入口、文档和公共入口。</p></div>
+          </div>
+          <div class="panel">
+            <div class="panel-body">
+              <div class="filters"><select><option>全部类型</option><option>项目</option><option>资源入口</option><option>文档</option><option>公共入口</option></select></div>
+              <div class="list">
+                <div class="item"><div><div class="item-title"><span>云手机用户端</span><span class="badge">项目</span></div><div class="item-meta">收藏于今天 10:21</div></div><button class="btn text" data-page-jump="project-detail">打开</button></div>
+                <div class="item"><div><div class="item-title"><span>用户端测试环境</span><span class="badge">资源入口</span></div><div class="item-meta">云手机用户端 / test-user.company.local</div></div><button class="btn text">复制</button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="recent">
+          <div class="page-head">
+            <div><h1>最近访问</h1><p class="subtle">近期打开过的项目、文档和入口。</p></div>
+          </div>
+          <div class="panel">
+            <div class="panel-body">
+              <div class="filters"><select><option>全部类型</option><option>项目</option><option>资源入口</option><option>文档</option><option>公共入口</option></select></div>
+              <div class="list">
+                <div class="item"><div><div class="item-title"><span>环境说明</span><span class="badge">文档</span></div><div class="item-meta">云手机用户端 / 11 分钟前</div></div><button class="btn text" data-page-jump="doc-detail">查看</button></div>
+                <div class="item"><div><div class="item-title"><span>云手机后台 API 文档</span><span class="badge">资源入口</span></div><div class="item-meta">32 分钟前</div></div><button class="btn text">打开</button></div>
+                <div class="item"><div><div class="item-title"><span>GitLab</span><span class="badge blue">公共入口</span></div><div class="item-meta">昨天 18:02</div></div><button class="btn text">打开</button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="manage">
+          <div class="page-head">
+            <div><h1>管理中心</h1><p class="subtle">低频配置、回收站和全局审计。</p></div>
+          </div>
+          <div class="grid two">
+            <div class="panel">
+              <div class="panel-head"><h2>文档模板管理</h2><button class="btn">新增模板</button></div>
+              <div class="panel-body table-wrap">
+                <table>
+                  <thead><tr><th>模板</th><th>文档类型</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>环境说明模板</td><td>环境说明</td><td><span class="badge">启用</span></td><td>05-30</td><td><button class="btn text">编辑</button></td></tr>
+                    <tr><td>部署说明模板</td><td>部署说明</td><td><span class="badge">启用</span></td><td>05-26</td><td><button class="btn text">编辑</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>系统配置</h2></div>
+              <div class="panel-body list">
+                <div class="item"><div><strong>文档过期天数</strong><div class="item-meta">90 天</div></div><button class="btn text">编辑</button></div>
+                <div class="item"><div><strong>图片大小限制</strong><div class="item-meta">10MB</div></div><button class="btn text">编辑</button></div>
+                <div class="item"><div><strong>项目类型</strong><div class="item-meta">前端、后端、后台、用户端、官网、移动端、小程序</div></div><button class="btn text">编辑</button></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>回收站</h2></div>
+              <div class="panel-body list">
+                <div class="item"><div><strong>旧版官网项目</strong><div class="item-meta">项目 / 李前端删除于 05-16</div></div><button class="btn text">恢复</button></div>
+                <div class="item"><div><strong>过期 API 文档</strong><div class="item-meta">文档 / 赵后端删除于 05-10</div></div><button class="btn text">恢复</button></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>操作审计</h2></div>
+              <div class="panel-body list">
+                <div class="item"><div><strong>王前端修改测试地址</strong><div class="item-meta">今天 10:20 / 资源入口</div></div><button class="btn text">详情</button></div>
+                <div class="item"><div><strong>赵后端恢复部署说明 v3</strong><div class="item-meta">昨天 19:44 / 文档版本</div></div><button class="btn text">详情</button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal" id="modal">
+      <div class="dialog">
+        <div class="dialog-head">
+          <h2 id="modal-title">新建</h2>
+          <button class="btn" data-close-modal>关闭</button>
+        </div>
+        <div class="dialog-body" id="modal-body"></div>
+        <div class="dialog-foot">
+          <button class="btn" data-close-modal>取消</button>
+          <button class="btn primary" data-close-modal>保存</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const pages = document.querySelectorAll(".page");
+      const navButtons = document.querySelectorAll(".nav-btn");
+
+      function showPage(id) {
+        pages.forEach((page) => page.classList.toggle("active", page.id === id));
+        navButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.page === id));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      navButtons.forEach((btn) => {
+        btn.addEventListener("click", () => showPage(btn.dataset.page));
+      });
+
+      document.querySelectorAll("[data-page-jump]").forEach((btn) => {
+        btn.addEventListener("click", () => showPage(btn.dataset.pageJump));
+      });
+
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = btn.dataset.tab;
+          document.querySelectorAll(".tab-btn").forEach((tab) => tab.classList.remove("active"));
+          document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
+          btn.classList.add("active");
+          document.getElementById(target).classList.add("active");
+        });
+      });
+
+      const modal = document.getElementById("modal");
+      const modalTitle = document.getElementById("modal-title");
+      const modalBody = document.getElementById("modal-body");
+
+      const modalForms = {
+        project: {
+          title: "新建或编辑项目",
+          html: `
+            <div class="form-grid">
+              <div class="field"><label>项目名称</label><input value="云手机用户端" /></div>
+              <div class="field"><label>项目类型</label><select><option>用户端</option><option>后台</option><option>前端</option><option>后端</option><option>官网</option><option>移动端</option><option>小程序</option></select></div>
+              <div class="field"><label>别名和关键词</label><input value="云机, cloud phone, 用户 H5" /></div>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label>前端负责人</label><input value="王前端, 林前端" /></div>
+              <div class="field"><label>后端负责人</label><input value="赵后端" /></div>
+              <div class="field"><label>测试负责人</label><input value="刘测试" /></div>
+            </div>
+            <div class="field"><label>项目简介</label><textarea>云手机用户访问、购买、续费和设备管理入口。</textarea></div>
+          `,
+        },
+        resource: {
+          title: "新增或编辑资源入口",
+          html: `
+            <div class="form-grid">
+              <div class="field"><label>名称</label><input value="用户端测试环境" /></div>
+              <div class="field"><label>类型</label><select><option>测试地址</option><option>线上地址</option><option>GitLab 地址</option><option>原型地址</option><option>API 文档地址</option></select></div>
+              <div class="field"><label>排序</label><input value="10" /></div>
+            </div>
+            <div class="field"><label>URL</label><input value="https://test-user.company.local" /></div>
+            <div class="field"><label>说明</label><textarea>研发联调和测试验收使用。</textarea></div>
+          `,
+        },
+        "public-link": {
+          title: "新增或编辑公共入口",
+          html: `
+            <div class="form-grid">
+              <div class="field"><label>名称</label><input value="GitLab" /></div>
+              <div class="field"><label>类型</label><input value="代码" /></div>
+              <div class="field"><label>是否启用</label><select><option>启用</option><option>停用</option></select></div>
+            </div>
+            <div class="field"><label>URL</label><input value="https://gitlab.company.local" /></div>
+            <div class="field"><label>说明</label><textarea>公司内部代码仓库。</textarea></div>
+          `,
+        },
+      };
+
+      document.querySelectorAll("[data-open-modal]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const form = modalForms[btn.dataset.openModal];
+          modalTitle.textContent = form.title;
+          modalBody.innerHTML = form.html;
+          modal.classList.add("open");
+        });
+      });
+
+      document.querySelectorAll("[data-close-modal]").forEach((btn) => {
+        btn.addEventListener("click", () => modal.classList.remove("open"));
+      });
+
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) {
+          modal.classList.remove("open");
+        }
+      });
+    </script>
+  </body>
+</html>

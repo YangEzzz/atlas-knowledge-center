@@ -1,0 +1,32 @@
+name: ty-notebook
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: ty-notebook-api
+    restart: unless-stopped
+    env_file:
+      - ./apps/api/.env-production
+    expose:
+      - "8080"
+    networks:
+      - ty-notebook-net
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: ty-notebook-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - ty-notebook-net
+
+networks:
+  ty-notebook-net:
+    driver: bridge

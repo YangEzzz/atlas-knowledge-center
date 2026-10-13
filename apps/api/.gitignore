@@ -1,0 +1,6 @@
+.env
+.env-production
+tmp/
+server
+.gocache/
+.gomodcache/
