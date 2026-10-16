@@ -5,7 +5,9 @@
         <CardTitle>{{ title }}</CardTitle>
       </div>
       <CardAction v-if="actionText">
-        <Button variant="outline" size="sm">{{ actionText }}</Button>
+        <Button variant="outline" size="sm" @click="$emit('action')">{{
+          actionText
+        }}</Button>
       </CardAction>
     </CardHeader>
     <CardContent>
@@ -17,7 +19,9 @@
         </thead>
         <tbody>
           <tr v-for="(row, rowIndex) in rows" :key="rowIndex">
-            <td v-for="column in columns" :key="column">{{ row[column] || '-' }}</td>
+            <td v-for="column in columns" :key="column">
+              {{ row[column] || "-" }}
+            </td>
           </tr>
         </tbody>
       </Table>
@@ -26,14 +30,22 @@
 </template>
 
 <script setup lang="ts">
-import { Button } from '@/components/ui/button'
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table } from '@/components/ui/table'
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Table } from "@/components/ui/table";
+
+defineEmits<{ action: [] }>();
 
 defineProps<{
-  title: string
-  actionText?: string
-  columns: string[]
-  rows: Array<Record<string, string>>
-}>()
+  title: string;
+  actionText?: string;
+  columns: string[];
+  rows: Array<Record<string, string>>;
+}>();
 </script>

@@ -3,6 +3,8 @@ dist/
 .pnpm-store/
 .gocache/
 .gomodcache/
+.gotmp/
+.npm-cache/
 .env
 .env.local
 .env-production

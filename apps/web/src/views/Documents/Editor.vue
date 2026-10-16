@@ -1,17 +1,27 @@
 <template>
   <PageHeader
     eyebrow="文档编辑"
-    title="编辑富文本文档"
+    title="编辑文档"
     description="直接维护真实文档内容，可插入图片、记录变更，并按项目关联文档类型。"
   >
     <template #actions>
-      <Button variant="outline">
+      <Button
+        variant="outline"
+        :disabled="!currentDocument"
+        @click="
+          currentDocument &&
+          router.push({
+            name: 'DocumentDetail',
+            params: { id: currentDocument.id },
+          })
+        "
+      >
         <Clock3 class="button-icon" />
         查看记录
       </Button>
       <Button variant="secondary" :disabled="saving" @click="saveDraft">
         <Save class="button-icon" />
-        {{ saving ? '保存中...' : '保存草稿' }}
+        {{ saving ? "保存中..." : "保存草稿" }}
       </Button>
       <Button :disabled="saving" @click="publishDocument">
         <Send class="button-icon" />
@@ -23,37 +33,51 @@
   <Card class="filter-card">
     <CardContent>
       <div v-if="message" class="notice">{{ message }}</div>
-      <div v-if="errorMessage" class="notice notice-error">{{ errorMessage }}</div>
+      <div v-if="errorMessage" class="notice notice-error">
+        {{ errorMessage }}
+      </div>
       <div class="form-grid">
         <label class="ui-field">
           <span>文档标题</span>
-          <Input v-model="form.title" class="ui-input" placeholder="例如：云手机用户端环境说明" />
+          <Input
+            v-model="form.title"
+            class="ui-input"
+            placeholder="例如：云手机用户端环境说明"
+          />
         </label>
         <label class="ui-field">
           <span>所属项目</span>
-          <Select v-model="form.projectId">
+          <UiSelect v-model="form.projectId">
             <SelectTrigger class="ui-select-trigger">
               <SelectValue placeholder="请选择所属项目" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem v-for="item in projectOptions" :key="item.value" :value="item.value">
+              <SelectItem
+                v-for="item in projectOptions"
+                :key="item.value"
+                :value="item.value"
+              >
                 {{ item.label }}
               </SelectItem>
             </SelectContent>
-          </Select>
+          </UiSelect>
         </label>
         <label class="ui-field">
           <span>文档类型</span>
-          <Select v-model="form.type">
+          <UiSelect v-model="form.type">
             <SelectTrigger class="ui-select-trigger">
               <SelectValue placeholder="请选择文档类型" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem v-for="item in docTypeOptions" :key="item.value" :value="item.value">
+              <SelectItem
+                v-for="item in docTypeOptions"
+                :key="item.value"
+                :value="item.value"
+              >
                 {{ item.label }}
               </SelectItem>
             </SelectContent>
-          </Select>
+          </UiSelect>
         </label>
       </div>
     </CardContent>
@@ -64,10 +88,14 @@
       <CardHeader class="ui-card-header">
         <div>
           <CardTitle>正文</CardTitle>
-          <CardDescription>使用富文本编辑器维护内容，支持标题、表格、链接和图片。</CardDescription>
+          <CardDescription
+            >使用富文本编辑器维护内容，支持标题、表格、链接和图片。</CardDescription
+          >
         </div>
         <CardAction>
-          <Badge variant="secondary" class="ui-badge ui-badge--default">富文本</Badge>
+          <Badge variant="secondary" class="ui-badge ui-badge--default"
+            >富文本</Badge
+          >
         </CardAction>
       </CardHeader>
       <CardContent>
@@ -89,10 +117,13 @@
         <CardContent>
           <div class="rich-preview">
             <div class="preview-document-head">
-              <h2>{{ form.title || '未命名文档' }}</h2>
+              <h2>{{ form.title || "未命名文档" }}</h2>
               <p>{{ selectedProjectName }} / {{ selectedDocTypeLabel }}</p>
             </div>
-            <div class="preview-document-body rich-document-body" v-html="previewHtml" />
+            <div
+              class="preview-document-body rich-document-body"
+              v-html="previewHtml"
+            />
           </div>
         </CardContent>
       </Card>
@@ -104,7 +135,9 @@
             <CardDescription>用于搜索、过期提醒和权限对接。</CardDescription>
           </div>
           <CardAction>
-            <Badge variant="secondary" class="ui-badge ui-badge--success">自动保存中</Badge>
+            <Badge variant="secondary" class="ui-badge ui-badge--success"
+              >自动保存中</Badge
+            >
           </CardAction>
         </CardHeader>
         <CardContent>
@@ -133,16 +166,35 @@
 </template>
 
 <script setup lang="ts">
-import '@wangeditor/editor/dist/css/style.css'
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import { Clock3, Save, Send } from 'lucide-vue-next'
-import { createEditor, createToolbar } from '@wangeditor/editor'
-import type { IDomEditor, IEditorConfig, IToolbarConfig, Toolbar as WangToolbar } from '@wangeditor/editor'
-import { getDocuments, getProjectDocument, saveDocument, type DocumentItem } from '@/api/documents'
-import { getProjects } from '@/api/projects'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import "@wangeditor/editor/dist/css/style.css";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  shallowRef,
+  watch,
+} from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { Clock3, Save, Send } from "lucide-vue-next";
+import { createEditor, createToolbar } from "@wangeditor/editor";
+import type {
+  IDomEditor,
+  IEditorConfig,
+  IToolbarConfig,
+  Toolbar as WangToolbar,
+} from "@wangeditor/editor";
+import {
+  getDocuments,
+  getProjectDocument,
+  saveDocument,
+  type DocumentItem,
+} from "@/api/documents";
+import { getProjects } from "@/api/projects";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -150,200 +202,215 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import PageHeader from '@/components/ui/PageHeader.vue'
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import {
-  Select,
+  Select as UiSelect,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { isHtmlContent, markdownToHtml, stripHtml } from '@/utils/markdown'
+} from "@/components/ui/select";
+import { isHtmlContent, markdownToHtml, stripHtml } from "@/utils/markdown";
 
-const route = useRoute()
-const saving = ref(false)
-const loading = ref(false)
-const message = ref('')
-const errorMessage = ref('')
-const currentDocument = ref<DocumentItem | null>(null)
-const projectOptions = ref<Array<{ label: string; value: string }>>([])
-const editorRef = shallowRef<IDomEditor | null>(null)
-const toolbarRef = shallowRef<WangToolbar | null>(null)
-const toolbarContainerRef = ref<HTMLElement | null>(null)
-const editorContainerRef = ref<HTMLElement | null>(null)
-const isSyncingEditor = ref(false)
+const route = useRoute();
+const router = useRouter();
+const saving = ref(false);
+const loading = ref(false);
+const message = ref("");
+const errorMessage = ref("");
+const currentDocument = ref<DocumentItem | null>(null);
+const projectOptions = ref<Array<{ label: string; value: string }>>([]);
+const editorRef = shallowRef<IDomEditor | null>(null);
+const toolbarRef = shallowRef<WangToolbar | null>(null);
+const toolbarContainerRef = ref<HTMLElement | null>(null);
+const editorContainerRef = ref<HTMLElement | null>(null);
+const isSyncingEditor = ref(false);
 
 const form = reactive({
-  title: '',
-  projectId: '',
-  type: 'environment',
-  summary: '',
-  status: 'draft' as 'draft' | 'published',
-  content: '',
-})
+  title: "",
+  projectId: "",
+  type: "environment",
+  summary: "",
+  status: "draft" as "draft" | "published",
+  content: "",
+});
 
 const docTypeOptions = [
-  { label: '项目介绍', value: 'intro' },
-  { label: '环境说明', value: 'environment' },
-  { label: '部署说明', value: 'deploy' },
-  { label: 'API 说明', value: 'api' },
-  { label: '账号/权限申请说明', value: 'access' },
-  { label: '常见问题 FAQ', value: 'faq' },
-  { label: '开发规范', value: 'standard' },
-]
+  { label: "项目介绍", value: "intro" },
+  { label: "环境说明", value: "environment" },
+  { label: "部署说明", value: "deploy" },
+  { label: "API 说明", value: "api" },
+  { label: "账号/权限申请说明", value: "access" },
+  { label: "常见问题 FAQ", value: "faq" },
+  { label: "开发规范", value: "standard" },
+];
 
 const toolbarConfig: Partial<IToolbarConfig> = {
-  excludeKeys: ['group-video', 'fullScreen'],
-}
+  excludeKeys: ["group-video", "fullScreen"],
+};
 
 const editorConfig: Partial<IEditorConfig> = {
-  placeholder: '编写项目介绍、环境说明、部署步骤、API 说明、FAQ 等真实内容...',
+  placeholder: "编写项目介绍、环境说明、部署步骤、API 说明、FAQ 等真实内容...",
   scroll: false,
   MENU_CONF: {
     uploadImage: {
-      customUpload(file: File, insertFn: (url: string, alt: string, href: string) => void) {
-        const reader = new FileReader()
+      customUpload(
+        file: File,
+        insertFn: (url: string, alt: string, href: string) => void,
+      ) {
+        const reader = new FileReader();
         reader.onload = () => {
-          if (typeof reader.result === 'string') {
-            insertFn(reader.result, file.name, '')
+          if (typeof reader.result === "string") {
+            insertFn(reader.result, file.name, "");
           }
-        }
-        reader.readAsDataURL(file)
+        };
+        reader.readAsDataURL(file);
       },
     },
   },
   onChange(editor: IDomEditor) {
     if (!isSyncingEditor.value) {
-      form.content = editor.getHtml()
+      form.content = editor.getHtml();
     }
   },
-}
+};
 
 const selectedProjectName = computed(() => {
-  return projectOptions.value.find((item) => item.value === form.projectId)?.label || '未选择项目'
-})
+  return (
+    projectOptions.value.find((item) => item.value === form.projectId)?.label ||
+    "未选择项目"
+  );
+});
 
 const selectedDocTypeLabel = computed(() => {
-  return docTypeOptions.find((item) => item.value === form.type)?.label || form.type
-})
+  return (
+    docTypeOptions.find((item) => item.value === form.type)?.label || form.type
+  );
+});
 
-const statusLabel = computed(() => (form.status === 'published' ? '已发布' : '草稿'))
+const statusLabel = computed(() =>
+  form.status === "published" ? "已发布" : "草稿",
+);
 
-const previewHtml = computed(() => form.content || '<p>正文内容将在这里预览。</p>')
+const previewHtml = computed(
+  () => form.content || "<p>正文内容将在这里预览。</p>",
+);
 
 onMounted(async () => {
-  await loadProjects()
-  await hydrateFromRoute()
-  await nextTick()
-  mountWangEditor()
-})
+  await loadProjects();
+  await hydrateFromRoute();
+  await nextTick();
+  mountWangEditor();
+});
 
 onBeforeUnmount(() => {
-  toolbarRef.value?.destroy()
-  editorRef.value?.destroy()
-})
+  toolbarRef.value?.destroy();
+  editorRef.value?.destroy();
+});
 
 watch(
   () => form.type,
   () => {
     if (!currentDocument.value) {
-      applyTemplateIfEmpty()
+      applyTemplateIfEmpty();
     }
   },
-)
+);
 
 async function loadProjects() {
-  const res = await getProjects({ page: 1, pageSize: 100 })
+  const res = await getProjects({ page: 1, pageSize: 100 });
   projectOptions.value = res.data.list.map((project) => ({
     label: project.name,
     value: String(project.id),
-  }))
+  }));
 }
 
 async function hydrateFromRoute() {
-  loading.value = true
-  errorMessage.value = ''
+  loading.value = true;
+  errorMessage.value = "";
   try {
-    const projectId = String(route.query.projectId || '')
-    const type = String(route.query.type || '')
+    const projectId = String(route.query.projectId || "");
+    const type = String(route.query.type || "");
     if (projectId) {
-      form.projectId = projectId
+      form.projectId = projectId;
     } else if (projectOptions.value[0]) {
-      form.projectId = projectOptions.value[0].value
+      form.projectId = projectOptions.value[0].value;
     }
     if (type) {
-      form.type = type
+      form.type = type;
     }
 
     if (form.projectId && form.type) {
-      await loadExistingDocument(Number(form.projectId), form.type)
+      await loadExistingDocument(Number(form.projectId), form.type);
     }
     if (!currentDocument.value) {
-      applyTemplateIfEmpty()
+      applyTemplateIfEmpty();
     }
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function loadExistingDocument(projectId: number, type: string) {
   try {
-    const res = await getProjectDocument(projectId, type)
-    fillDocument(res.data)
+    const res = await getProjectDocument(projectId, type);
+    fillDocument(res.data);
   } catch {
-    const list = await getDocuments({ projectId, type, page: 1, pageSize: 1 })
-    const firstDocument = list.data.list[0]
+    const list = await getDocuments({ projectId, type, page: 1, pageSize: 1 });
+    const firstDocument = list.data.list[0];
     if (firstDocument) {
-      fillDocument(firstDocument)
-      return
+      fillDocument(firstDocument);
+      return;
     }
-    currentDocument.value = null
+    currentDocument.value = null;
   }
 }
 
 function fillDocument(document: DocumentItem) {
-  currentDocument.value = document
-  form.title = document.title
-  form.projectId = String(document.projectId)
-  form.type = document.type
-  form.summary = document.summary
-  form.status = document.status === 'published' ? 'published' : 'draft'
-  form.content = isHtmlContent(document.content) ? document.content : markdownToHtml(document.content)
-  syncEditorHtml()
+  currentDocument.value = document;
+  form.title = document.title;
+  form.projectId = String(document.projectId);
+  form.type = document.type;
+  form.summary = document.summary;
+  form.status = document.status === "published" ? "published" : "draft";
+  form.content = isHtmlContent(document.content)
+    ? document.content
+    : markdownToHtml(document.content);
+  syncEditorHtml();
 }
 
 function applyTemplateIfEmpty() {
   if (form.title || form.content) {
-    return
+    return;
   }
-  form.title = `${selectedProjectName.value}${selectedDocTypeLabel.value}`
-  form.summary = `${selectedDocTypeLabel.value}待补充`
-  form.content = documentTemplate(form.type)
+  form.title = `${selectedProjectName.value}${selectedDocTypeLabel.value}`;
+  form.summary = `${selectedDocTypeLabel.value}待补充`;
+  form.content = documentTemplate(form.type);
 }
 
 async function saveDraft() {
-  await save('draft')
+  await save("draft");
 }
 
 async function publishDocument() {
-  await save('published')
+  await save("published");
 }
 
-async function save(status: 'draft' | 'published') {
-  message.value = ''
-  errorMessage.value = ''
+async function save(status: "draft" | "published") {
+  message.value = "";
+  errorMessage.value = "";
   if (!form.projectId) {
-    errorMessage.value = '请选择所属项目'
-    return
+    errorMessage.value = "请选择所属项目";
+    return;
   }
   if (!form.title.trim()) {
-    errorMessage.value = '文档标题不能为空'
-    return
+    errorMessage.value = "文档标题不能为空";
+    return;
   }
 
-  saving.value = true
+  saving.value = true;
   try {
     const res = await saveDocument({
       projectId: Number(form.projectId),
@@ -352,13 +419,14 @@ async function save(status: 'draft' | 'published') {
       summary: form.summary.trim() || buildSummary(form.content),
       content: form.content,
       status,
-    })
-    fillDocument(res.data)
-    message.value = status === 'published' ? '文档已发布' : '草稿已保存'
+    });
+    fillDocument(res.data);
+    message.value = status === "published" ? "文档已发布" : "草稿已保存";
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '保存文档失败'
+    errorMessage.value =
+      error instanceof Error ? error.message : "保存文档失败";
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
@@ -366,16 +434,21 @@ function buildSummary(content: string) {
   const plainText = isHtmlContent(content)
     ? stripHtml(content)
     : content
-        .split('\n')
-        .map((item) => item.replace(/^#+\s*/, '').replace(/^[-*]\s*/, '').trim())
-        .find(Boolean)
-  return (plainText || '暂无摘要').slice(0, 120)
+        .split("\n")
+        .map((item) =>
+          item
+            .replace(/^#+\s*/, "")
+            .replace(/^[-*]\s*/, "")
+            .trim(),
+        )
+        .find(Boolean);
+  return (plainText || "暂无摘要").slice(0, 120);
 }
 
 function documentTemplate(type: string) {
-  const title = selectedDocTypeLabel.value
-  const projectName = selectedProjectName.value
-  if (type === 'environment') {
+  const title = selectedDocTypeLabel.value;
+  const projectName = selectedProjectName.value;
+  if (type === "environment") {
     return `<h1>${title}</h1>
 <h2>测试环境</h2>
 <ul>
@@ -392,9 +465,9 @@ function documentTemplate(type: string) {
 <h2>常见问题</h2>
 <ul>
   <li></li>
-</ul>`
+</ul>`;
   }
-  if (type === 'deploy') {
+  if (type === "deploy") {
     return `<h1>${title}</h1>
 <h2>发布前检查</h2>
 <ul>
@@ -411,9 +484,9 @@ function documentTemplate(type: string) {
 <h2>回滚方案</h2>
 <ul>
   <li></li>
-</ul>`
+</ul>`;
   }
-  if (type === 'api') {
+  if (type === "api") {
     return `<h1>${title}</h1>
 <h2>接口文档入口</h2>
 <ul>
@@ -424,7 +497,7 @@ function documentTemplate(type: string) {
 <h2>联调约定</h2>
 <ul>
   <li></li>
-</ul>`
+</ul>`;
   }
   return `<h1>${projectName}${title}</h1>
 <h2>背景</h2>
@@ -434,39 +507,42 @@ function documentTemplate(type: string) {
 <h2>维护说明</h2>
 <ul>
   <li></li>
-</ul>`
+</ul>`;
 }
 
 function mountWangEditor() {
-  if (!editorContainerRef.value || !toolbarContainerRef.value || editorRef.value) {
-    return
+  if (
+    !editorContainerRef.value ||
+    !toolbarContainerRef.value ||
+    editorRef.value
+  ) {
+    return;
   }
 
   const editor = createEditor({
     selector: editorContainerRef.value,
-    html: form.content || '<p><br></p>',
+    html: form.content || "<p><br></p>",
     config: editorConfig,
-    mode: 'default',
-  })
+    mode: "default",
+  });
   const toolbar = createToolbar({
     editor,
     selector: toolbarContainerRef.value,
     config: toolbarConfig,
-    mode: 'default',
-  })
+    mode: "default",
+  });
 
-  editorRef.value = editor
-  toolbarRef.value = toolbar
+  editorRef.value = editor;
+  toolbarRef.value = toolbar;
 }
 
 function syncEditorHtml() {
-  const editor = editorRef.value
+  const editor = editorRef.value;
   if (!editor || editor.isDestroyed || editor.getHtml() === form.content) {
-    return
+    return;
   }
-  isSyncingEditor.value = true
-  editor.setHtml(form.content || '<p><br></p>')
-  isSyncingEditor.value = false
+  isSyncingEditor.value = true;
+  editor.setHtml(form.content || "<p><br></p>");
+  isSyncingEditor.value = false;
 }
-
 </script>

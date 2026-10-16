@@ -14,6 +14,7 @@ export const useAuthStore = defineStore(
   'auth',
   () => {
     const isLogin = ref(false)
+    const initialized = ref(false)
     const user = ref<CurrentUser | null>(null)
 
     function setUser(nextUser: CurrentUser | null) {
@@ -23,11 +24,12 @@ export const useAuthStore = defineStore(
 
     return {
       isLogin,
+      initialized,
       user,
       setUser,
     }
   },
   {
-    persist: true,
+    persist: false,
   },
 )

@@ -44,6 +44,10 @@ export function getPublicLinks(params: PublicLinkListParams) {
   })
 }
 
+export function getPublicLink(id: number) {
+  return api.get<PublicLink>({ url: `/public-links/${id}` })
+}
+
 export function createPublicLink(data: PublicLinkSavePayload) {
   return api.post<PublicLink>({
     url: '/public-links',

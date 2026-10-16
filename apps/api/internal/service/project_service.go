@@ -27,9 +27,10 @@ type ProjectOwnerInput struct {
 }
 
 type ProjectEntryInput struct {
-	Type  string `json:"type"`
-	Title string `json:"title"`
-	URL   string `json:"url"`
+	Type   string `json:"type"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+	Remark string `json:"remark"`
 }
 
 type ProjectSaveInput struct {
@@ -164,6 +165,7 @@ func buildEntries(projectID uint, inputs []ProjectEntryInput, actorID *uint) []m
 			Type:      entryType,
 			Title:     title,
 			URL:       url,
+			Remark:    strings.TrimSpace(input.Remark),
 			SortOrder: index,
 			CreatedBy: actorID,
 			UpdatedBy: actorID,

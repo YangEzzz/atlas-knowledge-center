@@ -25,6 +25,7 @@ type ProjectEntryDTO struct {
 	Type      string `json:"type"`
 	Title     string `json:"title"`
 	URL       string `json:"url"`
+	Remark    string `json:"remark"`
 	SortOrder int    `json:"sortOrder"`
 }
 
@@ -92,6 +93,7 @@ func mapProject(project models.Project) ProjectDTO {
 			Type:      entry.Type,
 			Title:     entry.Title,
 			URL:       entry.URL,
+			Remark:    entry.Remark,
 			SortOrder: entry.SortOrder,
 		})
 	}

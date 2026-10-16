@@ -1,21 +1,33 @@
 package routes
 
 import (
+	"ty-notebook-api/internal/accounts"
 	"ty-notebook-api/internal/api/handlers"
 	"ty-notebook-api/internal/api/response"
+	"ty-notebook-api/internal/config"
 	"ty-notebook-api/internal/database"
+	"ty-notebook-api/internal/entries"
 	"ty-notebook-api/internal/repository"
 	"ty-notebook-api/internal/service"
+	"ty-notebook-api/internal/sso"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Register(r *gin.Engine) {
+func Register(r *gin.Engine, cfg config.Config) {
 	pingHandler := handlers.NewPingHandler()
 
 	api := r.Group("/api/v1")
 	{
 		api.GET("/ping", pingHandler.Ping)
+		if database.DB == nil {
+			api.Use(func(c *gin.Context) { response.Error(c, 503, "database is not initialized"); c.Abort() })
+		} else {
+			auth := sso.New(database.DB, cfg)
+			auth.Register(api.Group("/auth"))
+			api.Use(auth.AuthMiddleware())
+			api.GET("/auth/me", auth.Me)
+		}
 
 		if database.DB == nil {
 			registerDatabaseUnavailableProjectRoutes(api)
@@ -23,6 +35,9 @@ func Register(r *gin.Engine) {
 		}
 
 		projectRepo := repository.NewProjectRepository(database.DB)
+		accountCrypt, _ := accounts.NewCrypt(cfg.AccountKeyID, cfg.AccountKeys)
+		accounts.Register(api, database.DB, accountCrypt, cfg.AccountRevealPolicy)
+		entries.Register(api, database.DB, accountCrypt)
 		projectService := service.NewProjectService(projectRepo)
 		projectHandler := handlers.NewProjectHandler(projectService)
 		documentRepo := repository.NewDocumentRepository(database.DB)
@@ -65,6 +80,7 @@ func Register(r *gin.Engine) {
 		publicLinks := api.Group("/public-links")
 		{
 			publicLinks.GET("", publicLinkHandler.List)
+			publicLinks.GET("/:id", publicLinkHandler.Get)
 			publicLinks.POST("", publicLinkHandler.Create)
 			publicLinks.PUT("/:id", publicLinkHandler.Update)
 			publicLinks.DELETE("/:id", publicLinkHandler.Delete)
@@ -111,6 +127,7 @@ func registerDatabaseUnavailableProjectRoutes(api *gin.RouterGroup) {
 	publicLinks := api.Group("/public-links")
 	{
 		publicLinks.GET("", unavailable)
+		publicLinks.GET("/:id", unavailable)
 		publicLinks.POST("", unavailable)
 		publicLinks.PUT("/:id", unavailable)
 		publicLinks.DELETE("/:id", unavailable)

@@ -18,6 +18,7 @@ export interface ProjectEntry {
   type: 'production' | 'staging' | 'gitlab' | string
   title: string
   url: string
+  remark?: string
   sortOrder: number
 }
 
@@ -69,6 +70,7 @@ export interface ProjectEntryPayload {
   type: string
   title: string
   url: string
+  remark: string
 }
 
 export function getProjects(params: ProjectListParams) {

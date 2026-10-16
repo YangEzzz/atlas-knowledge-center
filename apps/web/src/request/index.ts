@@ -1,79 +1,101 @@
-import type { AxiosError, AxiosRequestConfig, AxiosRequestHeaders, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
-import axios from 'axios'
-import router from '@/router'
-import { getToken, removeToken } from '@/utils/auth'
+import type {
+  AxiosError,
+  AxiosRequestConfig,
+  AxiosRequestHeaders,
+  AxiosResponse,
+  InternalAxiosRequestConfig,
+} from "axios";
+import axios from "axios";
+import router from "@/router";
+import { getCSRFToken, clearLegacyAuth } from "@/utils/session";
+import { useAuthStore } from "@/store/auth";
 
 export interface ResponseData<T = unknown> {
-  code: number
-  message: string
-  data: T
+  code: number;
+  message: string;
+  data: T;
 }
 
 export type RequestError = AxiosError<{
-  message?: string
-  errorMessage?: string
-}>
+  message?: string;
+  errorMessage?: string;
+}>;
 
 const request = axios.create({
-  baseURL: import.meta.env.VITE_APP_API_BASE_URL || '/api/v1',
+  baseURL: import.meta.env.VITE_APP_API_BASE_URL || "/api/v1",
   timeout: 30000,
-})
+  withCredentials: true,
+});
 
-function requestHandler(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-  const token = getToken()
-  if (token) {
-    ;(config.headers as AxiosRequestHeaders).Authorization = `Bearer ${token}`
+async function requestHandler(
+  config: InternalAxiosRequestConfig,
+): Promise<InternalAxiosRequestConfig> {
+  if (
+    !["GET", "HEAD", "OPTIONS"].includes(config.method?.toUpperCase() || "GET")
+  ) {
+    (config.headers as AxiosRequestHeaders)["X-CSRF-Token"] =
+      await getCSRFToken();
   }
-  return config
+  return config;
 }
 
 function errorHandler(error: RequestError): Promise<never> {
-  const status = error.response?.status
+  const status = error.response?.status;
+  if (error.response?.data?.message)
+    error.message = error.response.data.message;
+  else if (!error.response && !axios.isCancel(error))
+    error.message = "网络连接失败，请稍后重试";
   if (status === 401) {
-    removeToken()
-    router.push('/auth/sign-in')
+    clearLegacyAuth();
+    useAuthStore().setUser(null);
+    if (!router.currentRoute.value.path.startsWith("/auth/")) {
+      router.push({
+        path: "/auth/sign-in",
+        query: { redirect: router.currentRoute.value.fullPath },
+      });
+    }
   }
-  return Promise.reject(error)
+  return Promise.reject(error);
 }
 
 function responseHandler(response: AxiosResponse<ResponseData>) {
-  const body = response.data
+  const body = response.data;
   if (!body) {
-    throw new Error('请求没有返回值')
+    throw new Error("请求没有返回值");
   }
   if (body.code !== 200) {
-    throw new Error(body.message || '请求失败')
+    throw new Error(body.message || "请求失败");
   }
-  return body
+  return body;
 }
 
-request.interceptors.request.use(requestHandler, errorHandler)
-request.interceptors.response.use(responseHandler as never, errorHandler)
+request.interceptors.request.use(requestHandler, errorHandler);
+request.interceptors.response.use(responseHandler as never, errorHandler);
 
 interface UploadRequestConfig extends AxiosRequestConfig {
-  data?: FormData | Record<string, unknown>
+  data?: FormData | Record<string, unknown>;
 }
 
 export const api = {
   get: <T>(option: AxiosRequestConfig): Promise<ResponseData<T>> => {
-    return request({ method: 'GET', ...option })
+    return request({ method: "GET", ...option });
   },
   post: <T>(option: AxiosRequestConfig): Promise<ResponseData<T>> => {
-    return request({ method: 'POST', ...option })
+    return request({ method: "POST", ...option });
   },
   put: <T>(option: AxiosRequestConfig): Promise<ResponseData<T>> => {
-    return request({ method: 'PUT', ...option })
+    return request({ method: "PUT", ...option });
   },
   delete: <T>(option: AxiosRequestConfig): Promise<ResponseData<T>> => {
-    return request({ method: 'DELETE', ...option })
+    return request({ method: "DELETE", ...option });
   },
   upload: <T>(option: UploadRequestConfig): Promise<ResponseData<T>> => {
     return request({
-      method: 'POST',
-      headers: { 'Content-Type': 'multipart/form-data' },
+      method: "POST",
+      headers: { "Content-Type": "multipart/form-data" },
       ...option,
-    })
+    });
   },
-}
+};
 
-export default request
+export default request;

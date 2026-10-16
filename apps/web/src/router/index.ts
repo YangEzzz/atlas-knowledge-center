@@ -1,9 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { isLoggedIn } from '@/utils/auth'
+import { useAuthStore } from '@/store/auth'
+import { getCurrentUser } from '@/api/auth'
+import { clearLegacyAuth, safeReturnPath } from '@/utils/session'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    {
+      path: '/auth/sso/complete',
+      component: () => import('@/views/Auth/SSOComplete.vue'),
+      meta: { public: true },
+    },
     {
       path: '/auth/sign-in',
       name: 'SignIn',
@@ -14,6 +21,7 @@ const router = createRouter({
       path: '/',
       component: () => import('@/layouts/AppLayout.vue'),
       children: [
+        {path:'my-accounts',name:'PersonalAccounts',component:()=>import('@/views/Accounts/index.vue')},
         {
           path: '',
           name: 'Home',
@@ -50,9 +58,10 @@ const router = createRouter({
           component: () => import('@/views/PublicLinks/index.vue'),
         },
         {
-          path: 'favorites',
-          name: 'Favorites',
-          component: () => import('@/views/Favorites/index.vue'),
+          path: 'favorites', redirect: '/my-entries',
+        },
+        {
+          path: 'my-entries', name: 'PersonalEntries', component: () => import('@/views/Entries/index.vue'),
         },
         {
           path: 'recent-visits',
@@ -69,11 +78,19 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
-  if (to.meta.public) {
-    return true
+router.beforeEach(async (to) => {
+  document.title = to.path.startsWith('/auth/') ? '登录 · Atlas 研发知识中心' : 'Atlas 研发知识中心'
+  if (to.path === '/auth/sso/complete') return true
+  const store = useAuthStore()
+  if (!store.initialized) {
+    clearLegacyAuth()
+    try { store.setUser(await getCurrentUser()) } catch { store.setUser(null) }
+    store.initialized = true
   }
-  if (!isLoggedIn()) {
+  if (to.meta.public) {
+    return store.isLogin ? safeReturnPath(to.query.redirect) : true
+  }
+  if (!store.isLogin) {
     return {
       path: '/auth/sign-in',
       query: { redirect: to.fullPath },

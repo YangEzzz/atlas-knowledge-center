@@ -41,10 +41,11 @@ type ProjectOwner struct {
 
 type ProjectEntry struct {
 	ID        uint           `gorm:"primaryKey" json:"id"`
-	ProjectID uint           `gorm:"not null;index;uniqueIndex:idx_project_entry_unique" json:"project_id"`
-	Type      string         `gorm:"size:50;not null;index;uniqueIndex:idx_project_entry_unique" json:"type"`
+	ProjectID uint           `gorm:"not null;index" json:"project_id"`
+	Type      string         `gorm:"size:50;not null;index" json:"type"`
 	Title     string         `gorm:"size:100;not null" json:"title"`
 	URL       string         `gorm:"size:1000;not null" json:"url"`
+	Remark    string         `gorm:"type:text;not null;default:''" json:"remark"`
 	SortOrder int            `gorm:"default:0;index" json:"sort_order"`
 	CreatedBy *uint          `gorm:"index" json:"created_by"`
 	UpdatedBy *uint          `gorm:"index" json:"updated_by"`

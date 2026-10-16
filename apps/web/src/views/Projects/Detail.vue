@@ -1,576 +1,437 @@
-<template>
-  <PageHeader
-    :title="project?.name || '项目详情'"
-    :description="project?.description || '查看项目基础信息、负责人、核心入口和项目文档分区。'"
-  >
-    <template #actions>
-      <Button variant="outline" @click="goBack">
-        <ArrowLeft class="button-icon" />
-        返回项目库
-      </Button>
-      <Button variant="outline" :disabled="loading" @click="loadProject">
-        <RefreshCw :class="['button-icon', { 'is-spinning': visibleLoading }]" />
-        刷新
-      </Button>
-      <Button v-if="project" @click="openProjectEditor">
-        <PencilLine class="button-icon" />
-        编辑项目
-      </Button>
-      <Button v-if="project" variant="outline" @click="toggleProjectFavorite">
-        <Heart :class="['button-icon', { 'is-filled': isCurrentProjectFavorite }]" />
-        {{ isCurrentProjectFavorite ? '已收藏' : '收藏' }}
-      </Button>
-    </template>
-  </PageHeader>
-
-  <div v-if="errorMessage" class="notice notice-error">{{ errorMessage }}</div>
-
-  <DetailPageSkeleton v-if="visibleLoading && !project" />
-
-  <EmptyState
-    v-else-if="!loading && !project"
-    :icon="FolderKanban"
-    title="项目不存在"
-    description="可能项目已被删除，或当前账号没有访问权限。"
-  >
-    <Button variant="outline" @click="goBack">
-      <ArrowLeft class="button-icon" />
-      返回项目库
-    </Button>
-  </EmptyState>
-
-  <template v-else-if="project">
-    <section v-if="project" class="project-command-panel" aria-label="项目概览">
-      <div class="project-command-main">
-        <div class="document-meta-row">
-          <Badge variant="secondary">{{ typeLabel(project.type) }}</Badge>
-          <Badge variant="secondary" :class="['ui-badge', badgeClass(projectStatus(project))]">
-            {{ projectStatus(project) }}
-          </Badge>
-          <Badge variant="outline">{{ documentCompletion.done }}/{{ documentCompletion.total }} 文档</Badge>
-        </div>
-        <p>{{ project.description || '这个项目还没有补充介绍。' }}</p>
-        <div class="badge-row">
-          <Badge v-for="keyword in project.keywords" :key="keyword" variant="outline">
-            {{ keyword }}
-          </Badge>
-          <span v-if="project.keywords.length === 0" class="muted-inline">暂无关键词</span>
-        </div>
-      </div>
-      <dl class="project-command-meta">
-        <div>
-          <dt>项目入口</dt>
-          <dd>{{ configuredEntryCount }}/{{ entryDisplayItems.length }}</dd>
-        </div>
-        <div>
-          <dt>负责人</dt>
-          <dd>{{ ownerCompletion.done }}/{{ ownerCompletion.total }}</dd>
-        </div>
-        <div>
-          <dt>最后更新</dt>
-          <dd>{{ formatDate(project.updatedAt) }}</dd>
-        </div>
-      </dl>
-    </section>
-
-    <div class="project-home-layout">
-      <main class="project-home-main">
-        <Card class="detail-section-card project-entry-section">
-          <CardHeader class="ui-card-header">
-            <div>
-              <CardTitle>核心入口</CardTitle>
-              <CardDescription>研发最常用的环境、代码、原型、API 和运维入口。</CardDescription>
-            </div>
-            <Badge
-              variant="secondary"
-              :class="['ui-badge', missingEntryCount > 0 ? 'ui-badge--warning' : 'ui-badge--success']"
-            >
-              {{ missingEntryCount > 0 ? `${missingEntryCount} 项待补` : '已补全' }}
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            <div class="project-entry-grid">
-              <article
-                v-for="entryItem in entryDisplayItems"
-                :key="entryItem.key"
-                :class="['project-entry-tile', { 'is-empty': !entryItem.entry }]"
-              >
-                <div class="project-entry-icon">
-                  <component :is="entryItem.icon" />
-                </div>
-                <div class="project-entry-content">
-                  <div class="project-entry-title">{{ entryItem.label }}</div>
-                  <a
-                    v-if="entryItem.entry"
-                    class="project-entry-url"
-                    :href="entryItem.entry.url"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {{ entryItem.entry.url }}
-                  </a>
-                  <span v-else class="project-entry-url">暂未配置</span>
-                </div>
-                <Button
-                  v-if="entryItem.entry"
-                  as="a"
-                  :href="entryItem.entry.url"
-                  target="_blank"
-                  rel="noreferrer"
-                  variant="outline"
-                  size="sm"
-                >
-                  <ExternalLink class="button-icon" />
-                  打开
-                </Button>
-                <Badge v-else variant="secondary" class="ui-badge ui-badge--warning">待补</Badge>
-              </article>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card class="detail-section-card">
-          <CardHeader class="ui-card-header">
-            <div>
-              <CardTitle>项目文档</CardTitle>
-              <CardDescription>按研发常用场景组织，快速查看或补全文档。</CardDescription>
-            </div>
-            <Badge variant="secondary">{{ documentCompletion.done }}/{{ documentCompletion.total }}</Badge>
-          </CardHeader>
-          <CardContent>
-            <div class="project-doc-map">
-              <article
-                v-for="section in docSections"
-                :key="section.value"
-                :class="['project-doc-card', { 'is-empty': !documentByType(section.value) }]"
-              >
-                <div class="project-doc-card-head">
-                  <div>
-                    <div class="project-doc-title">{{ section.title }}</div>
-                    <p>{{ section.description }}</p>
-                  </div>
-                  <Badge
-                    v-if="documentByType(section.value)"
-                    variant="secondary"
-                    :class="['ui-badge', documentStatusClass(documentByType(section.value)?.status)]"
-                  >
-                    {{ documentByType(section.value)?.statusLabel }}
-                  </Badge>
-                  <Badge v-else variant="secondary" class="ui-badge ui-badge--warning">待编写</Badge>
-                </div>
-                <p class="project-doc-excerpt">
-                  {{ documentExcerpt(documentByType(section.value), section.emptyDescription) }}
-                </p>
-                <div class="project-doc-footer">
-                  <span>
-                    {{ documentByType(section.value) ? `更新于 ${formatDate(documentByType(section.value)?.updatedAt || '')}` : '暂无更新时间' }}
-                  </span>
-                  <div class="section-actions">
-                    <Button
-                      v-if="documentByType(section.value)"
-                      variant="secondary"
-                      size="sm"
-                      @click="goViewDocument(documentByType(section.value)?.id)"
-                    >
-                      <Eye class="button-icon" />
-                      查看
-                    </Button>
-                    <Button variant="outline" size="sm" @click="goEditDocument(section.value)">
-                      <FilePenLine class="button-icon" />
-                      {{ documentByType(section.value) ? '编辑' : '新建' }}
-                    </Button>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
-
-      <aside class="project-home-aside">
-        <Card>
-          <CardHeader>
-            <CardTitle>负责人</CardTitle>
-            <CardDescription>当前维护责任人。</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div class="owner-detail-grid">
-              <div v-for="group in ownerGroups" :key="group.value" class="owner-detail-item">
-                <span>{{ group.label }}</span>
-                <strong>{{ group.names }}</strong>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>维护清单</CardTitle>
-            <CardDescription>补齐后项目页会更可靠。</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div class="project-checklist">
-              <div v-for="item in projectChecklist" :key="item.label" :class="{ 'is-done': item.done }">
-                <component :is="item.done ? CheckCircle2 : AlertCircle" class="project-check-icon" />
-                <span>{{ item.label }}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </aside>
-    </div>
-  </template>
-
-  <ProjectFormDialog
-    v-model:open="projectDialogOpen"
-    :project="project"
-    @saved="handleProjectSaved"
-  />
-</template>
-
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import {
-  AlertCircle,
-  Activity,
-  ArrowLeft,
-  Braces,
-  CheckCircle2,
-  ExternalLink,
+  ArrowUpRight,
+  Copy,
   FilePenLine,
-  FileText,
   FolderKanban,
-  GitBranch,
-  Globe2,
   Heart,
-  KeyRound,
-  Layers3,
-  Link2,
   PencilLine,
+  Plus,
   RefreshCw,
-  Eye,
-  Rocket,
-  ScrollText,
-  Server,
-  ShieldCheck,
-} from 'lucide-vue-next'
-import { getDocuments, type DocumentItem } from '@/api/documents'
-import { getProject, type Project, type ProjectEntry, type ProjectOwner } from '@/api/projects'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import ProjectFormDialog from '@/components/project/ProjectFormDialog.vue'
-import DetailPageSkeleton from '@/components/ui/DetailPageSkeleton.vue'
-import EmptyState from '@/components/ui/EmptyState.vue'
-import PageHeader from '@/components/ui/PageHeader.vue'
-import { useDelayedLoading } from '@/composables/use-delayed-loading'
-import { usePersonalRecords } from '@/composables/use-personal-records'
-import { stripHtml } from '@/utils/markdown'
-
-const route = useRoute()
-const router = useRouter()
-
-const loading = ref(false)
-const visibleLoading = useDelayedLoading(loading)
-const errorMessage = ref('')
-const project = ref<Project | null>(null)
-const documents = ref<DocumentItem[]>([])
-const projectDialogOpen = ref(false)
-const { addRecentVisit, isFavorite, toggleFavorite } = usePersonalRecords()
-
-const projectId = computed(() => Number(route.params.id))
-const isCurrentProjectFavorite = computed(() => {
-  return project.value ? isFavorite('project', project.value.id) : false
-})
-
-const coreEntryTypes = [
-  { label: '线上地址', value: 'production', icon: Globe2 },
-  { label: '测试地址', value: 'staging', icon: Server },
-  { label: 'GitLab', value: 'gitlab', icon: GitBranch },
-]
-
-const entryTypeMeta = [
-  ...coreEntryTypes,
-  { label: '原型地址', value: 'prototype', icon: Layers3 },
-  { label: 'API 文档', value: 'api_doc', icon: Braces },
-  { label: '后台地址', value: 'admin', icon: ShieldCheck },
-  { label: '监控地址', value: 'monitor', icon: Activity },
-  { label: '日志地址', value: 'logs', icon: ScrollText },
-  { label: '发布系统', value: 'deploy', icon: Rocket },
-  { label: '账号权限', value: 'access', icon: KeyRound },
-  { label: '其他', value: 'other', icon: Link2 },
-]
-
-const projectTypes = [
-  { label: '用户端', value: 'user_client' },
-  { label: '后台系统', value: 'admin' },
-  { label: '前端应用', value: 'frontend' },
-  { label: '后端服务', value: 'backend' },
-  { label: '官网', value: 'website' },
-  { label: '移动端', value: 'mobile' },
-  { label: '小程序', value: 'mini_program' },
-  { label: '公共库/组件', value: 'shared_lib' },
-  { label: '其他', value: 'other' },
-]
-
-const docSections = [
-  {
-    value: 'intro',
-    title: '项目介绍',
-    description: '记录项目定位、业务范围和核心能力。',
-    emptyTitle: '项目介绍还没有编写',
-    emptyDescription: '后续会接入项目文档编辑器，在这里维护富文本内容。',
+  FileText,
+} from "lucide-vue-next";
+import { toast } from "vue-sonner";
+import { getDocuments, type DocumentItem } from "@/api/documents";
+import { getProject, type Project } from "@/api/projects";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import ProjectFormDialog from "@/components/project/ProjectFormDialog.vue";
+import ProjectIdentity from "@/components/project/ProjectIdentity.vue";
+import PersonalAccounts from "@/components/project/PersonalAccounts.vue";
+import DetailPageSkeleton from "@/components/ui/DetailPageSkeleton.vue";
+import EmptyState from "@/components/ui/EmptyState.vue";
+import { useDelayedLoading } from "@/composables/use-delayed-loading";
+import { usePersonalRecords } from "@/composables/use-personal-records";
+import { entryLabel, formatDate, isStale } from "@/utils/project-identity";
+const route = useRoute();
+const router = useRouter();
+const loading = ref(false);
+const visibleLoading = useDelayedLoading(loading);
+const error = ref("");
+const documentError = ref("");
+const project = ref<Project | null>(null);
+const documents = ref<DocumentItem[]>([]);
+const documentTotal = ref(0);
+const editOpen = ref(false);
+const { addRecentVisit, isFavorite, toggleFavorite } = usePersonalRecords();
+const favorite = computed(
+  () => project.value && isFavorite("project", project.value.id),
+);
+const activeTab = ref("overview");
+const accountsPanel = ref<InstanceType<typeof PersonalAccounts> | null>(null);
+const selectedTab = computed({
+  get: () => activeTab.value,
+  set: async (value: string) => {
+    if (
+      activeTab.value === "accounts" &&
+      !(await accountsPanel.value?.confirmLeave())
+    )
+      return;
+    activeTab.value = value;
   },
-  {
-    value: 'environment',
-    title: '环境说明',
-    description: '整理线上、测试、预发、本地开发等环境差异。',
-    emptyTitle: '环境说明还没有编写',
-    emptyDescription: '核心入口已经可以维护，完整环境说明后续放到这里。',
-  },
-  {
-    value: 'deploy',
-    title: '部署说明',
-    description: '记录构建、发布、回滚和部署注意事项。',
-    emptyTitle: '部署说明还没有编写',
-    emptyDescription: '可以先在项目文档库里补充，后续在详情页关联。',
-  },
-  {
-    value: 'api',
-    title: 'API 说明',
-    description: '关联接口文档、联调方式和鉴权规则。',
-    emptyTitle: 'API 说明还没有编写',
-    emptyDescription: '后续会支持关联 API 文档入口或直接维护富文本内容。',
-  },
-  {
-    value: 'faq',
-    title: 'FAQ',
-    description: '沉淀常见问题、排障路径和新人踩坑点。',
-    emptyTitle: 'FAQ 还没有编写',
-    emptyDescription: '这里会成为新人和跨团队协作时最常看的部分。',
-  },
-]
-
-const entryDisplayItems = computed(() => {
-  const item = project.value
-  const extraEntries =
-    item?.entries
-      ?.filter((entry) => !coreEntryTypes.some((entryType) => entryType.value === entry.type))
-      .map((entry, index) => ({
-        key: `entry-${entry.id || entry.type}-${index}`,
-        label: entry.title || entryTypeLabel(entry.type),
-        value: entry.type,
-        icon: entryTypeIcon(entry.type),
-        entry,
-      })) || []
-
-  const coreEntries = coreEntryTypes.map((entryType) => ({
-    ...entryType,
-    key: `core-${entryType.value}`,
-    entry: item ? entryByType(item, entryType.value) : undefined,
-  }))
-  return [...coreEntries, ...extraEntries]
-})
-
-const configuredEntryCount = computed(() => {
-  return entryDisplayItems.value.filter((item) => Boolean(item.entry)).length
-})
-
-const missingEntryCount = computed(() => {
-  return entryDisplayItems.value.length - configuredEntryCount.value
-})
-
-const documentCompletion = computed(() => {
-  return {
-    done: docSections.filter((section) => Boolean(documentByType(section.value))).length,
-    total: docSections.length,
+});
+const owners = computed(() => [
+  { label: "前端负责人", names: project.value?.owners?.frontend },
+  { label: "后端负责人", names: project.value?.owners?.backend },
+  { label: "测试负责人", names: project.value?.owners?.tester },
+]);
+const docTypes = [
+  { value: "intro", label: "项目介绍" },
+  { value: "environment", label: "环境说明" },
+  { value: "deploy", label: "部署说明" },
+  { value: "api", label: "API 说明" },
+  { value: "faq", label: "常见问题" },
+];
+const missingDocTypes = computed(() =>
+  docTypes.filter(
+    (type) => !documents.value.some((doc) => doc.type === type.value),
+  ),
+);
+let generation = 0;
+watch(() => route.params.id, load, { immediate: true });
+async function load() {
+  const id = Number(route.params.id);
+  const request = ++generation;
+  if (!Number.isFinite(id) || id <= 0) {
+    error.value = "无效的项目地址，请返回项目库。";
+    return;
   }
-})
-
-const ownerGroups = computed(() => {
-  const owners = project.value?.owners
-  return [
-    { label: '前端', value: 'frontend', names: ownerNames(owners?.frontend) },
-    { label: '后端', value: 'backend', names: ownerNames(owners?.backend) },
-    { label: '测试', value: 'tester', names: ownerNames(owners?.tester) },
-  ]
-})
-
-const ownerCompletion = computed(() => {
-  const groups = ownerGroups.value
-  return {
-    done: groups.filter((group) => group.names !== '-').length,
-    total: groups.length,
+  loading.value = true;
+  error.value = "";
+  documentError.value = "";
+  const previousId = project.value?.id;
+  if (previousId !== id) {
+    project.value = null;
+    documents.value = [];
+    activeTab.value = "overview";
   }
-})
-
-const projectChecklist = computed(() => {
-  const item = project.value
-  return [
-    { label: '项目介绍已填写', done: Boolean(item?.description) },
-    { label: '负责人已配置', done: ownerCompletion.value.done === ownerCompletion.value.total },
-    { label: '核心入口已配置', done: missingEntryCount.value === 0 },
-    { label: '基础文档已维护', done: documentCompletion.value.done >= 3 },
-  ]
-})
-
-onMounted(() => {
-  loadProject()
-})
-
-async function loadProject() {
-  if (!Number.isFinite(projectId.value) || projectId.value <= 0) {
-    errorMessage.value = '无效的项目 ID'
-    project.value = null
-    return
-  }
-
-  loading.value = true
-  errorMessage.value = ''
   try {
-    const res = await getProject(projectId.value)
-    project.value = res.data
-    await loadDocuments()
-    addRecentVisit(projectRecordPayload(res.data))
-  } catch (error) {
-    project.value = null
-    documents.value = []
-    errorMessage.value = error instanceof Error ? error.message : '获取项目详情失败'
+    const res = await getProject(id);
+    if (request !== generation) return;
+    project.value = res.data;
+    addRecentVisit(record(res.data));
+    try {
+      const d = await getDocuments({ projectId: id, page: 1, pageSize: 100 });
+      if (request !== generation) return;
+      documents.value = d.data.list;
+      documentTotal.value = d.data.total;
+    } catch {
+      if (request === generation)
+        documentError.value = "项目已加载，文档读取失败，请重试。";
+    }
+  } catch (cause) {
+    if (request === generation)
+      error.value =
+        cause instanceof Error ? cause.message : "项目读取失败，请重试。";
   } finally {
-    loading.value = false
+    if (request === generation) loading.value = false;
   }
 }
-
-async function loadDocuments() {
-  const res = await getDocuments({
-    projectId: projectId.value,
-    page: 1,
-    pageSize: 100,
-  })
-  documents.value = res.data.list
-}
-
-function goBack() {
-  router.push({ name: 'Projects' })
-}
-
-function openProjectEditor() {
-  projectDialogOpen.value = true
-}
-
-async function handleProjectSaved(savedProject: Project) {
-  project.value = savedProject
-  projectDialogOpen.value = false
-  addRecentVisit(projectRecordPayload(savedProject))
-  await loadDocuments()
-}
-
-function toggleProjectFavorite() {
-  if (!project.value) return
-  toggleFavorite(projectRecordPayload(project.value))
-}
-
-function goEditDocument(type: string) {
-  router.push({
-    path: '/documents/editor',
-    query: {
-      projectId: String(projectId.value),
-      type,
-    },
-  })
-}
-
-function goViewDocument(id?: number) {
-  if (!id) return
-  router.push({ name: 'DocumentDetail', params: { id } })
-}
-
-function documentByType(type: string) {
-  return documents.value.find((document) => document.type === type)
-}
-
-function documentExcerpt(document: DocumentItem | undefined, fallback: string) {
-  if (!document) return fallback
-  const text = document.summary || stripHtml(document.content || '')
-  return (text || '这篇文档还没有摘要。').slice(0, 96)
-}
-
-function entryByType(item: Project, type: string) {
-  return item.entries?.find((entry: ProjectEntry) => entry.type === type && entry.url)
-}
-
-function entryTypeLabel(type: string) {
-  return entryTypeMeta.find((entryType) => entryType.value === type)?.label || type
-}
-
-function entryTypeIcon(type: string) {
-  return entryTypeMeta.find((entryType) => entryType.value === type)?.icon || Link2
-}
-
-function ownerNames(owners?: ProjectOwner[] | null) {
-  if (!owners || owners.length === 0) {
-    return '-'
-  }
-  return owners.map((owner) => owner.ownerName).join('、')
-}
-
-function typeLabel(type: string) {
-  return projectTypes.find((item) => item.value === type)?.label || type
-}
-
-function projectStatus(item: Project) {
-  const hasAnyOwner =
-    Boolean(item.owners?.frontend?.length) ||
-    Boolean(item.owners?.backend?.length) ||
-    Boolean(item.owners?.tester?.length)
-  if (!hasAnyOwner || !item.description) {
-    return '需补充'
-  }
-  if (!item.entries?.length) {
-    return '待补入口'
-  }
-  return '正常'
-}
-
-function badgeClass(status: string) {
-  if (status === '正常') return 'ui-badge--success'
-  if (status === '待补入口') return 'ui-badge--warning'
-  return 'ui-badge--default'
-}
-
-function documentStatusClass(status?: string) {
-  if (status === 'published') return 'ui-badge--success'
-  return 'ui-badge--default'
-}
-
-function formatDate(value: string) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function projectRecordPayload(item: Project) {
+function record(p: Project) {
   return {
-    kind: 'project' as const,
-    targetId: item.id,
-    title: item.name,
-    description: item.description || '暂无项目介绍',
-    path: `/projects/${item.id}`,
-    badge: typeLabel(item.type),
+    kind: "project" as const,
+    targetId: p.id,
+    title: p.name,
+    description: p.description,
+    path: `/projects/${p.id}`,
+    badge: p.typeLabel,
+  };
+}
+function toggle() {
+  if (project.value) toggleFavorite(record(project.value));
+}
+function newDocument(type = "intro") {
+  router.push({
+    path: "/documents/editor",
+    query: { projectId: String(project.value?.id), type },
+  });
+}
+async function copy(url: string) {
+  try {
+    await navigator.clipboard.writeText(url);
+    toast.success("链接已复制");
+  } catch {
+    toast.error("复制失败，请选择链接手动复制");
   }
 }
-
+async function saved(p: Project) {
+  project.value = p;
+  editOpen.value = false;
+  await load();
+}
 </script>
+
+<template>
+  <div class="project-detail-page">
+    <div v-if="error" class="notice notice-error" role="alert">
+      {{ error
+      }}<Button variant="ghost" :disabled="loading" @click="load">重试</Button>
+    </div>
+    <DetailPageSkeleton v-if="visibleLoading && !project" />
+    <EmptyState
+      v-else-if="!loading && !project"
+      :icon="FolderKanban"
+      title="暂时无法查看项目"
+      description="项目可能已删除，或当前账号没有访问权限。"
+      ><Button variant="secondary" @click="router.push('/projects')"
+        >返回项目库</Button
+      ></EmptyState
+    >
+    <template v-else-if="project">
+      <header class="portal-detail-header">
+        <ProjectIdentity :id="project.id" :name="project.name" />
+        <div class="portal-detail-title">
+          <Badge variant="secondary">{{
+            project.typeLabel || project.type
+          }}</Badge>
+          <h1>{{ project.name }}</h1>
+          <p>{{ project.description || "项目介绍待补充" }}</p>
+        </div>
+        <div class="page-actions">
+          <Button variant="ghost" size="sm" :disabled="loading" @click="load">
+            <RefreshCw
+              :class="['button-icon', { 'is-spinning': visibleLoading }]"
+            />刷新
+          </Button>
+          <Button
+            variant="ghost"
+            :aria-pressed="Boolean(favorite)"
+            @click="toggle"
+            ><Heart :class="['button-icon', { 'is-filled': favorite }]" />{{
+              favorite ? "已收藏" : "收藏"
+            }}</Button
+          ><Button @click="editOpen = true"
+            ><PencilLine class="button-icon" />编辑项目</Button
+          >
+        </div>
+      </header>
+      <Tabs v-model="selectedTab" class="project-detail-tabs"
+        ><TabsList aria-label="项目资料"
+          ><TabsTrigger value="overview">概览</TabsTrigger
+          ><TabsTrigger value="resources"
+            >资源入口
+            <span class="tab-count">{{
+              project.entries?.length || 0
+            }}</span></TabsTrigger
+          ><TabsTrigger value="documents"
+            >文档
+            <span class="tab-count">{{ documentTotal }}</span></TabsTrigger
+          ><TabsTrigger value="accounts">我的账号</TabsTrigger></TabsList
+        >
+        <TabsContent v-if="activeTab === 'accounts'" value="accounts"
+          ><PersonalAccounts ref="accountsPanel" :project-id="project.id"
+        /></TabsContent>
+        <div v-else class="portal-detail-layout">
+          <div class="portal-detail-main">
+            <TabsContent
+              :key="activeTab"
+              :value="activeTab"
+              class="portal-tab-content"
+            >
+              <Card v-if="activeTab !== 'documents'"
+                ><CardHeader class="portal-card-heading"
+                  ><div>
+                    <CardTitle>资源入口</CardTitle>
+                    <p>常用环境、代码仓库和接口资料。</p>
+                  </div>
+                  <Button variant="ghost" size="sm" @click="editOpen = true"
+                    >管理入口
+                    <ArrowUpRight class="button-icon" /></Button></CardHeader
+                ><CardContent
+                  ><div
+                    v-if="project.entries?.length"
+                    class="portal-resource-grid"
+                  >
+                    <article
+                      v-for="entry in project.entries"
+                      :key="entry.id || entry.url"
+                      class="portal-resource"
+                    >
+                      <div class="portal-resource-heading">
+                        <h3>{{ entry.title || entryLabel(entry.type) }}</h3>
+                        <span>{{ entryLabel(entry.type) }}</span>
+                      </div>
+                      <a
+                        class="portal-resource-url"
+                        :href="entry.url"
+                        :title="entry.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        >{{ entry.url }}</a
+                      >
+                      <p v-if="entry.remark" class="portal-resource-remark">
+                        {{ entry.remark }}
+                      </p>
+                      <div class="portal-resource-actions">
+                        <a
+                          :href="entry.url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          >打开链接 <ArrowUpRight /></a
+                        ><button type="button" @click="copy(entry.url)">
+                          <Copy />复制链接
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+                  <EmptyState
+                    v-else
+                    :icon="FolderKanban"
+                    title="资源入口待补充"
+                    description="添加线上、测试、仓库和 API 文档地址，方便团队直接访问。"
+                    ><Button variant="secondary" @click="editOpen = true"
+                      >添加资源入口</Button
+                    ></EmptyState
+                  ></CardContent
+                ></Card
+              >
+
+              <section
+                v-if="activeTab === 'overview' || activeTab === 'documents'"
+                aria-labelledby="project-documents-title"
+                class="portal-documents"
+              >
+                <Card
+                  ><CardHeader class="portal-card-heading"
+                    ><div>
+                      <CardTitle id="project-documents-title"
+                        >项目文档</CardTitle
+                      >
+                      <p>从接手项目到部署上线。</p>
+                    </div>
+                    <Button variant="ghost" size="sm" @click="newDocument()"
+                      ><Plus class="button-icon" />新建文档</Button
+                    ></CardHeader
+                  ><CardContent
+                    ><p v-if="loading" class="aside-empty" role="status">
+                      正在加载项目文档…
+                    </p>
+                    <div
+                      v-if="documentError"
+                      class="notice notice-error"
+                      role="alert"
+                    >
+                      {{ documentError
+                      }}<Button variant="ghost" @click="load">重试</Button>
+                    </div>
+                    <div
+                      v-for="doc in activeTab === 'overview'
+                        ? documents.slice(0, 5)
+                        : documents"
+                      :key="doc.id"
+                      class="portal-document-row"
+                    >
+                      <FileText class="document-row-icon" />
+                      <div>
+                        <RouterLink :to="`/documents/${doc.id}`">{{
+                          doc.title
+                        }}</RouterLink>
+                        <p>
+                          {{ doc.typeLabel }} ·
+                          <time :datetime="doc.updatedAt">{{
+                            formatDate(doc.updatedAt)
+                          }}</time>
+                        </p>
+                      </div>
+                      <span v-if="isStale(doc.updatedAt)" class="stale-label"
+                        >可能过期</span
+                      ><Button
+                        variant="ghost"
+                        size="icon"
+                        :aria-label="`编辑${doc.title}`"
+                        @click="newDocument(doc.type)"
+                        ><FilePenLine
+                      /></Button>
+                    </div>
+                    <EmptyState
+                      v-if="!loading && !documents.length && !documentError"
+                      :icon="FileText"
+                      title="还没有项目文档"
+                      description="先补充项目介绍、环境说明或部署指南。"
+                    />
+                    <div
+                      v-if="activeTab === 'overview' && documents.length > 5"
+                      class="portal-document-more"
+                    >
+                      <Button variant="ghost" @click="activeTab = 'documents'"
+                        >查看全部 {{ documentTotal }} 篇文档
+                        <ArrowUpRight class="button-icon"
+                      /></Button>
+                    </div>
+                    <div
+                      v-if="!loading && missingDocTypes.length"
+                      class="missing-document-types"
+                    >
+                      <span>待补充</span
+                      ><Button
+                        v-for="type in missingDocTypes"
+                        :key="type.value"
+                        size="sm"
+                        variant="secondary"
+                        @click="newDocument(type.value)"
+                        >{{ type.label }} <Plus class="button-icon"
+                      /></Button>
+                    </div>
+                    <RouterLink
+                      v-if="documentTotal > documents.length"
+                      :to="{
+                        path: '/documents',
+                        query: { projectId: project.id },
+                      }"
+                      class="text-link"
+                      >前往文档库查看更多</RouterLink
+                    ></CardContent
+                  ></Card
+                >
+              </section>
+              <Card v-if="activeTab === 'overview'"
+                ><CardHeader><CardTitle>项目简介</CardTitle></CardHeader
+                ><CardContent
+                  ><p class="overview-copy">
+                    {{
+                      project.description ||
+                      "还没有填写项目简介，可通过编辑项目补充。"
+                    }}
+                  </p>
+                  <div v-if="project.keywords?.length" class="badge-row">
+                    <Badge
+                      v-for="keyword in project.keywords"
+                      :key="keyword"
+                      variant="secondary"
+                      >{{ keyword }}</Badge
+                    >
+                  </div></CardContent
+                ></Card
+              >
+            </TabsContent>
+          </div>
+          <aside class="portal-detail-aside">
+            <Card
+              ><CardHeader><CardTitle>项目负责人</CardTitle></CardHeader
+              ><CardContent
+                ><div
+                  v-for="owner in owners"
+                  :key="owner.label"
+                  class="portal-owner"
+                >
+                  <span>{{ owner.label }}</span
+                  ><strong>{{
+                    owner.names?.map((item) => item.ownerName).join("、") ||
+                    "待补充"
+                  }}</strong>
+                </div></CardContent
+              ></Card
+            ><Card
+              ><CardHeader><CardTitle>项目资料</CardTitle></CardHeader
+              ><CardContent
+                ><dl class="portal-properties">
+                  <div>
+                    <dt>资源入口</dt>
+                    <dd>{{ project.entries?.length || 0 }} 项</dd>
+                  </div>
+                  <div>
+                    <dt>项目文档</dt>
+                    <dd>{{ documentTotal }} 篇</dd>
+                  </div>
+                  <div>
+                    <dt>最近更新</dt>
+                    <dd>{{ formatDate(project.updatedAt) }}</dd>
+                  </div>
+                </dl></CardContent
+              ></Card
+            >
+          </aside>
+        </div>
+      </Tabs>
+      <ProjectFormDialog
+        v-model:open="editOpen"
+        :project="project"
+        @saved="saved"
+      />
+    </template>
+  </div>
+</template>

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"ty-notebook-api/internal/api/response"
@@ -8,6 +9,7 @@ import (
 	"ty-notebook-api/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type PublicLinkHandler struct {
@@ -16,6 +18,23 @@ type PublicLinkHandler struct {
 
 func NewPublicLinkHandler(service *service.PublicLinkService) *PublicLinkHandler {
 	return &PublicLinkHandler{service: service}
+}
+
+func (h *PublicLinkHandler) Get(c *gin.Context) {
+	id, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	link, err := h.service.Get(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Error(c, http.StatusNotFound, "工具不存在或已删除")
+		} else {
+			response.Error(c, http.StatusInternalServerError, "工具暂时无法加载，请重试")
+		}
+		return
+	}
+	response.OK(c, link)
 }
 
 func (h *PublicLinkHandler) List(c *gin.Context) {

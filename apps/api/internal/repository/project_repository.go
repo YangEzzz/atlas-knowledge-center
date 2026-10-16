@@ -36,7 +36,12 @@ func (r *ProjectRepository) List(filter ProjectListFilter) ([]models.Project, in
 	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
 		like := "%" + keyword + "%"
 		query = query.Where(
-			"name ILIKE ? OR description ILIKE ? OR keywords ILIKE ?",
+			`projects.name ILIKE ? OR projects.description ILIKE ? OR projects.keywords ILIKE ?
+            OR EXISTS (SELECT 1 FROM project_entries WHERE project_entries.project_id = projects.id AND project_entries.deleted_at IS NULL AND (project_entries.title ILIKE ? OR project_entries.url ILIKE ?))
+            OR EXISTS (SELECT 1 FROM project_owners WHERE project_owners.project_id = projects.id AND project_owners.owner_name ILIKE ?)`,
+			like,
+			like,
+			like,
 			like,
 			like,
 			like,

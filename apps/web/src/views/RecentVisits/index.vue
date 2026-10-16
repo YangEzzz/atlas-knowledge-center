@@ -1,14 +1,25 @@
 <template>
-  <PageHeader title="最近访问" description="快速回到近期查看过的项目、文档和入口。" />
+  <PageHeader
+    title="最近访问"
+    description="快速回到近期查看过的项目、文档和入口。"
+  />
 
   <Card>
     <CardHeader class="ui-card-header">
       <div>
         <CardTitle>访问记录</CardTitle>
-        <CardDescription>最近 {{ rows.length }} 条访问记录，按打开时间倒序排列。</CardDescription>
+        <CardDescription
+          >最近
+          {{ rows.length }} 条访问记录，按打开时间倒序排列。</CardDescription
+        >
       </div>
       <CardAction>
-        <Button variant="outline" size="sm" :disabled="rows.length === 0" @click="clearRecentVisits">
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="rows.length === 0"
+          @click="clearRecentVisits"
+        >
           <RotateCcw class="button-icon" />
           清理记录
         </Button>
@@ -41,25 +52,37 @@
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="row in rows" :key="row.id" class="hover:bg-sky-50/40">
+            <TableRow
+              v-for="row in rows"
+              :key="row.id"
+              class="hover:bg-sky-50/40"
+            >
               <TableCell class="whitespace-normal">
                 <div class="min-w-0">
                   <div class="record-title">{{ row.title }}</div>
-                  <div class="record-description">{{ row.description || '暂无描述' }}</div>
+                  <div class="record-description">
+                    {{ row.description || "暂无描述" }}
+                  </div>
                 </div>
               </TableCell>
               <TableCell>
-                <Badge variant="secondary">{{ recordKindLabel(row.kind) }}</Badge>
+                <Badge variant="secondary">{{
+                  recordKindLabel(row.kind)
+                }}</Badge>
               </TableCell>
               <TableCell class="text-muted-foreground truncate">
-                {{ row.projectName || '-' }}
+                {{ row.projectName || "-" }}
               </TableCell>
               <TableCell class="text-muted-foreground">
                 {{ formatDate(row.recordedAt) }}
               </TableCell>
               <TableCell>
                 <div class="flex justify-center gap-1">
-                  <Button variant="ghost" size="sm" @click="openRecord(row.path)">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    @click="openRecord(row.path)"
+                  >
                     <ExternalLink class="button-icon" />
                     打开
                   </Button>
@@ -74,10 +97,10 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import { Clock3, ExternalLink, RotateCcw } from 'lucide-vue-next'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { useRouter } from "vue-router";
+import { Clock3, ExternalLink, RotateCcw } from "lucide-vue-next";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -85,9 +108,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import EmptyState from '@/components/ui/EmptyState.vue'
-import PageHeader from '@/components/ui/PageHeader.vue'
+} from "@/components/ui/card";
+import EmptyState from "@/components/ui/EmptyState.vue";
+import PageHeader from "@/components/ui/PageHeader.vue";
 import {
   Table,
   TableBody,
@@ -95,38 +118,42 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { usePersonalRecords, type PersonalRecordKind } from '@/composables/use-personal-records'
+} from "@/components/ui/table";
+import {
+  usePersonalRecords,
+  type PersonalRecordKind,
+} from "@/composables/use-personal-records";
 
-const router = useRouter()
-const { recentVisits: rows, clearRecentVisits } = usePersonalRecords()
+const router = useRouter();
+const { recentVisits: rows, clearRecentVisits } = usePersonalRecords();
 
 function openRecord(path: string) {
   if (/^https?:\/\//i.test(path)) {
-    window.open(path, '_blank', 'noopener,noreferrer')
-    return
+    window.open(path, "_blank", "noopener,noreferrer");
+    return;
   }
-  router.push(path)
+  router.push(path);
 }
 
 function recordKindLabel(kind: PersonalRecordKind) {
   const labels: Record<PersonalRecordKind, string> = {
-    project: '项目',
-    document: '文档',
-    public_link: '工具',
-  }
-  return labels[kind]
+    project: "项目",
+    document: "文档",
+    public_link: "工具",
+  };
+  return labels[kind];
 }
 
 function formatDate(value: string) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 </script>
