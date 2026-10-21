@@ -27,6 +27,7 @@ type ProjectOwnerInput struct {
 }
 
 type ProjectEntryInput struct {
+	ID     uint   `json:"id"`
 	Type   string `json:"type"`
 	Title  string `json:"title"`
 	URL    string `json:"url"`
@@ -77,13 +78,7 @@ func (s *ProjectService) Create(input ProjectSaveInput, actorID *uint) (*Project
 		CreatedBy:   actorID,
 		UpdatedBy:   actorID,
 	}
-	if err := s.repo.Create(project); err != nil {
-		return nil, err
-	}
-	if err := s.repo.ReplaceOwners(project.ID, buildOwners(project.ID, input, actorID)); err != nil {
-		return nil, err
-	}
-	if err := s.repo.ReplaceEntries(project.ID, buildEntries(project.ID, input.Entries, actorID)); err != nil {
+	if err := s.repo.SaveProject(project, buildOwners(project.ID, input, actorID), buildEntries(project.ID, input.Entries, actorID), actorID); err != nil {
 		return nil, err
 	}
 	return s.Get(project.ID)
@@ -102,13 +97,7 @@ func (s *ProjectService) Update(id uint, input ProjectSaveInput, actorID *uint) 
 	project.SortOrder = input.SortOrder
 	project.UpdatedBy = actorID
 
-	if err := s.repo.Update(project); err != nil {
-		return nil, err
-	}
-	if err := s.repo.ReplaceOwners(project.ID, buildOwners(project.ID, input, actorID)); err != nil {
-		return nil, err
-	}
-	if err := s.repo.ReplaceEntries(project.ID, buildEntries(project.ID, input.Entries, actorID)); err != nil {
+	if err := s.repo.SaveProject(project, buildOwners(project.ID, input, actorID), buildEntries(project.ID, input.Entries, actorID), actorID); err != nil {
 		return nil, err
 	}
 	return s.Get(project.ID)
@@ -118,8 +107,8 @@ func (s *ProjectService) Delete(id uint, actorID *uint) error {
 	return s.repo.Delete(id, actorID)
 }
 
-func (s *ProjectService) Restore(id uint) error {
-	return s.repo.Restore(id)
+func (s *ProjectService) Restore(id uint, actor ...*uint) error {
+	return s.repo.Restore(id, actor...)
 }
 
 func buildOwners(projectID uint, input ProjectSaveInput, actorID *uint) []models.ProjectOwner {
@@ -161,6 +150,7 @@ func buildEntries(projectID uint, inputs []ProjectEntryInput, actorID *uint) []m
 			title = projectEntryTitle(entryType)
 		}
 		entries = append(entries, models.ProjectEntry{
+			ID:        input.ID,
 			ProjectID: projectID,
 			Type:      entryType,
 			Title:     title,

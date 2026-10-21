@@ -7,6 +7,8 @@ import (
 	"ty-notebook-api/internal/config"
 	"ty-notebook-api/internal/database"
 	"ty-notebook-api/internal/entries"
+	"ty-notebook-api/internal/images"
+	"ty-notebook-api/internal/management"
 	"ty-notebook-api/internal/repository"
 	"ty-notebook-api/internal/service"
 	"ty-notebook-api/internal/sso"
@@ -35,6 +37,8 @@ func Register(r *gin.Engine, cfg config.Config) {
 		}
 
 		projectRepo := repository.NewProjectRepository(database.DB)
+		management.Register(api, database.DB)
+		images.Register(api, cfg)
 		accountCrypt, _ := accounts.NewCrypt(cfg.AccountKeyID, cfg.AccountKeys)
 		accounts.Register(api, database.DB, accountCrypt, cfg.AccountRevealPolicy)
 		entries.Register(api, database.DB, accountCrypt)
@@ -54,14 +58,14 @@ func Register(r *gin.Engine, cfg config.Config) {
 			projects.GET("/:id", projectHandler.Get)
 			projects.PUT("/:id", projectHandler.Update)
 			projects.DELETE("/:id", projectHandler.Delete)
-			projects.POST("/:id/restore", projectHandler.Restore)
+			projects.POST("/:id/restore", management.Admin(database.DB), projectHandler.Restore)
 		}
 
 		documents := api.Group("/documents")
 		{
 			documents.GET("", documentHandler.List)
 			documents.POST("", documentHandler.Save)
-			documents.GET("/trash", documentHandler.ListDeleted)
+			documents.GET("/trash", management.Admin(database.DB), documentHandler.ListDeleted)
 			documents.GET("/project/:projectId/type/:type", documentHandler.GetByProjectAndType)
 			documents.GET("/:id/versions", documentHandler.ListVersions)
 			documents.GET("/:id/versions/:versionId", documentHandler.GetVersion)
@@ -69,7 +73,7 @@ func Register(r *gin.Engine, cfg config.Config) {
 			documents.GET("/:id", documentHandler.Get)
 			documents.PUT("/:id", documentHandler.Save)
 			documents.DELETE("/:id", documentHandler.Delete)
-			documents.POST("/:id/restore", documentHandler.Restore)
+			documents.POST("/:id/restore", management.Admin(database.DB), documentHandler.Restore)
 		}
 
 		documentVersions := api.Group("/document-versions")
@@ -84,7 +88,7 @@ func Register(r *gin.Engine, cfg config.Config) {
 			publicLinks.POST("", publicLinkHandler.Create)
 			publicLinks.PUT("/:id", publicLinkHandler.Update)
 			publicLinks.DELETE("/:id", publicLinkHandler.Delete)
-			publicLinks.POST("/:id/restore", publicLinkHandler.Restore)
+			publicLinks.POST("/:id/restore", management.Admin(database.DB), publicLinkHandler.Restore)
 		}
 	}
 }

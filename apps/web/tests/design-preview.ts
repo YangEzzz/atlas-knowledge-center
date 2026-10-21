@@ -16,6 +16,7 @@ import PublicLinks from "../src/views/PublicLinks/index.vue";
 import Favorites from "../src/views/Favorites/index.vue";
 import Recent from "../src/views/RecentVisits/index.vue";
 import Manage from "../src/views/Manage/index.vue";
+import { createManagementPreview } from './management-preview';
 import Accounts from "../src/views/Accounts/index.vue";
 import Entries from "../src/views/Entries/index.vue";
 import "vue-sonner/style.css";
@@ -183,6 +184,13 @@ const tools = [
   updatedAt: now,
 }));
 const scenario = new URLSearchParams(location.search).get("scenario");
+const managementPreview = createManagementPreview(scenario, now);
+const originalPreviewFetch = window.fetch.bind(window);
+window.fetch = (input, init) => String(input).endsWith('/auth/csrf')
+  ? Promise.resolve(Response.json({ code: 200, data: { csrf_token: 'preview-only' } }))
+  : originalPreviewFetch(input, init);
+const previewImages = new Map<string, object>();
+let imageFailures = scenario === 'image-error' ? 1 : 0;
 // Disposable examples only. Local-account tests use isolated, disposable browser contexts.
 let accountId = 401;
 let accountRows: any[] = [
@@ -240,12 +248,24 @@ request.defaults.adapter = async (config) => {
   previewRequests.push({ url: config.url, method: config.method, params: config.params, data: config.data });
   const url = config.url || "";
   const switchingProject = scenario === "project-switch" && /^\/projects\/\d+$/.test(url);
-  const requestDelay = switchingProject ? (url.endsWith('/101') ? 1500 : 500) : delay;
+  const requestDelay = url.startsWith('/images/') && scenario === 'image-slow' ? 5000 : switchingProject ? (url.endsWith('/101') ? 1500 : 500) : delay;
   await new Promise((resolve) => setTimeout(resolve, requestDelay));
   if (scenario === "error") throw new Error("暂时无法读取资料，请稍后重试。");
   if (switchingProject && url.endsWith('/103')) throw new Error('项目暂时无法加载');
   let data: unknown = {};
-  if(url.startsWith("/my/entries")) {
+  if (url.startsWith('/manage/') || url.startsWith('/document-templates/active/')) data = await managementPreview(config);
+  else if (url.startsWith('/images/')) {
+    if (imageFailures > 0) { imageFailures--; throw new Error('图片服务暂时不可用，请重新选择图片重试'); }
+    if (url === '/images/check') {
+      const { md5 } = JSON.parse(String(config.data));
+      data = previewImages.has(md5) ? { ...previewImages.get(md5), exists: true, reused: true } : { exists: false, md5 };
+    } else {
+      const md5 = (config.data as FormData).get('md5') as string;
+      data = { md5, url: `${location.origin}/tests/image-upload.png`, reused: false };
+      previewImages.set(md5, data as object);
+    }
+  }
+  else if(url.startsWith("/my/entries")) {
     const method=config.method||"get";const input=typeof config.data==="string"?JSON.parse(config.data):config.data||{};
     const id=Number(url.split('/')[3]);const row=entryRows.find(item=>item.id===id);
     const hydrate=(entry:any)=>{

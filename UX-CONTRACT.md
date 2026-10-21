@@ -2,6 +2,8 @@
 
 ## 业务依据
 
+文档图片接入遵循 `docs/图片上传接入.md`：复用现有 Button 和 wangEditor，浏览器计算 MD5 并先查询，命中跳过文件上传；Atlas 后端以会话用户和服务端项目凭据代调 Helios。上传期间展示状态及取消按钮、暂禁保存和发布；失败保留正文并允许同文件重试，离开页面取消请求。图片公开读取的说明位于上传区，项目密钥不进入前端。
+
 | 领域 | 来源 | 界面后果 |
 |---|---|---|
 | 项目与文档 | docs/PRD.md | 项目资料就地维护 |
@@ -29,6 +31,8 @@
 | Select/Listbox | components/ui/select | shadcn-vue / Reka UI 默认弹层与键盘行为 | authored | 方向键、Escape、嵌套弹层与窄屏检查 |
 | Scrollbar | src/style.css 全局规则 | design-spec.md | standard / forced-colors | 浏览器计算样式 |
 | CRUD | 业务 views、api 与 ProjectFormDialog | docs/PRD.md、design-spec.md | page / dialog | tests/design-preview.ts |
+| Date | components/ui/input 的 datetime-local | docs/管理中心实施.md | native（接受操作系统日期弹层）；输入与请求明确北京时间 | 管理中心日期筛选回归 |
+| Management | views/Manage、api/management、TemplateDialog | docs/管理中心实施.md | templates / trash / audit；共用默认 Tabs、Table、Select、Dialog | 后端事务测试、tests/management.cjs |
 | Personal Entries | views/Entries、EntryFormDialog、api/entries、use-personal-records | docs/个人入口实施.md | private / public reference / trash | tests/personal-entries.cjs、后端 entries 事务回滚测试 |
 | Account Storage | PersonalAccounts、composables/personal-accounts、utils/local-accounts | docs/本地账号保存.md（用户确认） | local / server | tests/local-accounts.cjs、tests/tool-accounts.cjs |
 
@@ -43,7 +47,7 @@
 页面不设顶部栏；桌面全局搜索从侧栏进入，移动导航按钮位于正文起始处，弹层内可打开搜索。
 项目库默认卡片，可切换表格；分页由服务端完成。项目详情概览优先展示资源和文档，负责人在辅助栏；小屏辅助内容顺序重排，不隐藏真实记录。
 同一项目允许多个相同类型的资源入口，以可编辑的名称区分测试、线上等用途；名称留空使用类型名称，编辑保留已有名称、地址、备注与顺序。
-本次保留现有已实现的业务范围，不以无效按钮展示尚无接口的私有笔记、审计等能力。
+不以无效按钮展示尚无接口的能力。2026-10-21 管理中心新增模板、公共回收站与审计，具体范围见 docs/管理中心实施.md；系统配置不展示占位入口。
 个人账号已单独实现，通用私有笔记仍待实现。项目详情与侧栏汇总复用 PersonalAccounts；仅本人可见，密码按需读取并自动隐藏。新增/编辑后回到当前账号列表并刷新，删除进回收站，7 天后失效并自动清理；失败保留输入，离开未保存表单先确认。详情见 docs/个人账户信息流程.md。
 个人账号的搜索和筛选仅保存在当前组件内存中，避免把私人用户名等搜索条件写入 URL 或浏览历史。
 卡片环境和保存位置分区展示：标题旁为完整环境标签，底部明确描述保存位置，避免“服务器 · 测试”被理解为服务器类型。

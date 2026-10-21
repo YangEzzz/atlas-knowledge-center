@@ -206,7 +206,7 @@ func (s *DocumentService) RestoreVersion(versionID uint, input DocumentVersionRe
 		CreatedBy:     actorID,
 	}
 
-	if err := s.repo.SaveWithVersion(document, restoredVersion); err != nil {
+	if err := s.repo.SaveWithVersion(document, restoredVersion, true); err != nil {
 		return nil, err
 	}
 	return s.Get(document.ID)
@@ -220,11 +220,11 @@ func (s *DocumentService) Delete(id uint, actorID *uint) error {
 	return s.repo.Delete(document, actorID)
 }
 
-func (s *DocumentService) Restore(id uint) (*DocumentDTO, error) {
+func (s *DocumentService) Restore(id uint, actor ...*uint) (*DocumentDTO, error) {
 	if _, err := s.repo.FindDeletedByID(id); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Restore(id); err != nil {
+	if err := s.repo.Restore(id, actor...); err != nil {
 		return nil, err
 	}
 	return s.Get(id)

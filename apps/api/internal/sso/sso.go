@@ -418,6 +418,7 @@ func (s *Service) AuthMiddleware() gin.HandlerFunc {
 			}
 		}
 		c.Set("userID", sess.UserID)
+		c.Set("externalUserID", sess.ExternalID)
 		c.Next()
 	}
 }

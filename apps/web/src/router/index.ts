@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
 import { getCurrentUser } from '@/api/auth'
 import { clearLegacyAuth, safeReturnPath } from '@/utils/session'
+import { canManage } from '@/utils/management-access'
+import { toast } from 'vue-sonner'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -95,6 +97,10 @@ router.beforeEach(async (to) => {
       path: '/auth/sign-in',
       query: { redirect: to.fullPath },
     }
+  }
+  if (to.name === 'Manage' && !canManage(store.user?.roles)) {
+    toast.error('仅 Atlas 管理员可使用管理中心')
+    return { name: 'Home' }
   }
   return true
 })

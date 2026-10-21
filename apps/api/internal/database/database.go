@@ -51,6 +51,8 @@ func Connect(cfg config.Config) {
 			&models.ProjectDocument{},
 			&models.DocumentVersion{},
 			&models.PublicLink{},
+			&models.DocumentTemplate{},
+			&models.AuditLog{},
 			&sso.Session{},
 			&sso.LoginTransaction{},
 		); err != nil {
@@ -58,6 +60,9 @@ func Connect(cfg config.Config) {
 		}
 		if err := AllowMultipleProjectEntries(DB); err != nil {
 			log.Fatalf("Failed to migrate project entry index: %v", err)
+		}
+		if err := DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_enabled_document_template ON document_templates (type) WHERE is_enabled = true").Error; err != nil {
+			log.Fatalf("Failed to migrate template constraint: %v", err)
 		}
 		log.Println("Database auto migration completed")
 	} else {

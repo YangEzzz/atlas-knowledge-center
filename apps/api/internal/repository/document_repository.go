@@ -3,9 +3,12 @@ package repository
 import (
 	"strings"
 
+	"ty-notebook-api/internal/audit"
+	"ty-notebook-api/internal/lifecycle"
 	"ty-notebook-api/internal/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type DocumentRepository struct {
@@ -40,6 +43,8 @@ func (r *DocumentRepository) list(filter DocumentListFilter, deletedOnly bool) (
 	query := r.db.Model(&models.ProjectDocument{})
 	if deletedOnly {
 		query = query.Unscoped().Where("deleted_at IS NOT NULL")
+	} else {
+		query = query.Where("EXISTS (SELECT 1 FROM projects WHERE projects.id = project_documents.project_id AND projects.deleted_at IS NULL)")
 	}
 	if filter.ProjectID > 0 {
 		query = query.Where("project_id = ?", filter.ProjectID)
@@ -120,14 +125,29 @@ func (r *DocumentRepository) Update(document *models.ProjectDocument) error {
 	return r.db.Save(document).Error
 }
 
-func (r *DocumentRepository) SaveWithVersion(document *models.ProjectDocument, version *models.DocumentVersion) error {
+func (r *DocumentRepository) SaveWithVersion(document *models.ProjectDocument, version *models.DocumentVersion, restoring ...bool) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		var parent models.Project
+		if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).First(&parent, document.ProjectID).Error; err != nil {
+			return err
+		}
+		action := "update"
 		if document.ID == 0 {
+			action = "create"
 			if err := tx.Create(document).Error; err != nil {
 				return err
 			}
-		} else if err := tx.Save(document).Error; err != nil {
-			return err
+		} else {
+			var old models.ProjectDocument
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&old, document.ID).Error; err != nil {
+				return err
+			}
+			if old.CurrentVersionNo+1 != document.CurrentVersionNo {
+				return lifecycle.ErrConflict
+			}
+			if err := tx.Save(document).Error; err != nil {
+				return err
+			}
 		}
 
 		version.DocumentID = document.ID
@@ -135,7 +155,10 @@ func (r *DocumentRepository) SaveWithVersion(document *models.ProjectDocument, v
 			return err
 		}
 
-		return nil
+		if len(restoring) > 0 && restoring[0] {
+			action = "restore_version"
+		}
+		return audit.Write(tx, version.CreatedBy, "document", document.ID, document.Title, &document.ProjectID, action, version.ChangeSummary, "标题", "摘要", "正文", "状态")
 	})
 }
 
@@ -168,20 +191,24 @@ func (r *DocumentRepository) FindVersionByID(versionID uint) (*models.DocumentVe
 
 func (r *DocumentRepository) Delete(document *models.ProjectDocument, actorID *uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(document, document.ID).Error; err != nil {
+			return err
+		}
 		document.DeletedBy = actorID
 		if err := tx.Save(document).Error; err != nil {
 			return err
 		}
-		return tx.Delete(document).Error
+		if err := tx.Delete(document).Error; err != nil {
+			return err
+		}
+		return audit.Write(tx, actorID, "document", document.ID, document.Title, &document.ProjectID, "delete", "删除文档")
 	})
 }
 
-func (r *DocumentRepository) Restore(id uint) error {
-	return r.db.Unscoped().
-		Model(&models.ProjectDocument{}).
-		Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"deleted_at": nil,
-			"deleted_by": nil,
-		}).Error
+func (r *DocumentRepository) Restore(id uint, actor ...*uint) error {
+	var user *uint
+	if len(actor) > 0 {
+		user = actor[0]
+	}
+	return lifecycle.Restore(r.db, "document", id, user)
 }

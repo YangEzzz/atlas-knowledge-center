@@ -233,6 +233,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type EntryFormRow = {
   id: number;
+  recordId?: number;
   type: string;
   title: string;
   url: string;
@@ -410,11 +411,11 @@ function ownerNamesForForm(owners?: ProjectOwner[] | null) {
 }
 
 function normalizeEntries(entries: ProjectEntry[] | undefined) {
-  const normalized =
+  const normalized: EntryFormRow[] =
     entries
       ?.slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((entry) => createEntryRow(entry.type, entry.url, entry.remark, entry.title)) || [];
+      .map((entry) => ({ ...createEntryRow(entry.type, entry.url, entry.remark, entry.title), recordId: entry.id })) || [];
 
   for (const type of ["production", "staging", "gitlab"]) {
     if (!normalized.some((entry) => entry.type === type)) {
@@ -452,6 +453,7 @@ function buildEntryPayload() {
     .map((entry) => ({ ...entry, url: entry.url.trim() }))
     .filter((entry) => entry.url)
     .map((entry) => ({
+      id: entry.recordId,
       type: entry.type,
       title: entry.title.trim() || entryTypeLabel(entry.type),
       url: entry.url,

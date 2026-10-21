@@ -13,10 +13,23 @@ func main() {
 	entryRemark := flag.Bool("entry-remark", false, "Add only the optional project entry remark column")
 	personalAccounts := flag.Bool("accounts", false, "Create only the personal accounts table")
 	multipleEntries := flag.Bool("multiple-project-entries", false, "Allow multiple project entries of the same type")
+	management := flag.Bool("management", false, "Create management templates and audit tables only")
 	flag.Parse()
 	cfg := config.Load()
 	if cfg.DBName != "atlas_db" {
 		log.Fatal("Atlas initialization only supports the dedicated atlas_db database")
+	}
+	if *management {
+		cfg.AutoMigrate = false
+		database.Connect(cfg)
+		if err := database.DB.AutoMigrate(&models.DocumentTemplate{}, &models.AuditLog{}); err != nil {
+			log.Fatal(err)
+		}
+		if err := database.DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_enabled_document_template ON document_templates (type) WHERE is_enabled = true").Error; err != nil {
+			log.Fatal(err)
+		}
+		log.Println("Management tables ready")
+		return
 	}
 	if *multipleEntries {
 		cfg.AutoMigrate = false

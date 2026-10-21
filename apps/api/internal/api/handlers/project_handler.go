@@ -122,7 +122,7 @@ func (h *ProjectHandler) Restore(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Restore(id); err != nil {
+	if err := h.service.Restore(id, currentUserID(c)); err != nil {
 		response.Error(c, http.StatusInternalServerError, "恢复项目失败: "+err.Error())
 		return
 	}

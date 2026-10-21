@@ -13,6 +13,7 @@
     "CRUD"
   ],
   "ownership": {
+    "Date": "native",
     "Select/Listbox": "authored"
   },
   "scope": "Atlas navigation UI, shared primitives and existing business screens",

@@ -19,11 +19,11 @@
         <Clock3 class="button-icon" />
         查看记录
       </Button>
-      <Button variant="secondary" :disabled="saving" @click="saveDraft">
+      <Button variant="secondary" :disabled="saving || uploading" @click="saveDraft">
         <Save class="button-icon" />
         {{ saving ? "保存中..." : "保存草稿" }}
       </Button>
-      <Button :disabled="saving" @click="publishDocument">
+      <Button :disabled="saving || uploading" @click="publishDocument">
         <Send class="button-icon" />
         发布
       </Button>
@@ -88,17 +88,29 @@
       <CardHeader class="ui-card-header">
         <div>
           <CardTitle>正文</CardTitle>
-          <CardDescription
-            >使用富文本编辑器维护内容，支持标题、表格、链接和图片。</CardDescription
-          >
         </div>
         <CardAction>
+          <input ref="imagePickerRef" type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="sr-only" tabindex="-1" aria-label="选择文档图片" @change="uploadFromPicker" />
+          <Button type="button" variant="outline" size="sm" :disabled="saving || !editorRef" @click="imagePickerRef?.click()">上传图片</Button>
           <Badge variant="secondary" class="ui-badge ui-badge--default"
             >富文本</Badge
           >
         </CardAction>
       </CardHeader>
       <CardContent>
+        <div class="mb-3 flex min-h-6 flex-wrap items-center gap-2 text-sm" aria-live="polite">
+          <span v-if="templateLoading" role="status">正在读取文档模板…</span>
+          <template v-else-if="templateError"><span role="alert" class="text-destructive">{{ templateError }}</span><Button type="button" variant="outline" size="sm" @click="applyTemplateIfEmpty">重试模板</Button></template>
+          <span v-else-if="templateMessage" class="text-muted-foreground">{{ templateMessage }}</span>
+        </div>
+        <p class="mb-3 text-sm leading-6 text-muted-foreground">支持标题、表格、链接和图片。图片支持 JPG、PNG、GIF、WebP，最大 10MB，相同内容自动复用。</p>
+        <div class="mb-3 flex min-h-9 flex-wrap items-center gap-2 text-sm" aria-live="polite">
+          <span v-if="uploading" role="status">{{ imageStatus }}（{{ uploading }} 张处理中）</span>
+          <span v-else-if="imageError" role="alert" class="text-destructive">{{ imageError }}</span>
+          <span v-else-if="imageStatus" role="status">{{ imageStatus }}</span>
+          <span v-else class="text-muted-foreground">上传的文档配图为公共图片，请勿包含私人资料。</span>
+          <Button v-if="uploading" type="button" variant="outline" size="sm" @click="cancelImageUploads">取消上传</Button>
+        </div>
         <div class="wang-editor-shell">
           <div ref="toolbarContainerRef" class="wang-editor-toolbar" />
           <div ref="editorContainerRef" class="wang-editor-body" />
@@ -136,7 +148,7 @@
           </div>
           <CardAction>
             <Badge variant="secondary" class="ui-badge ui-badge--success"
-              >自动保存中</Badge
+              >手动保存</Badge
             >
           </CardAction>
         </CardHeader>
@@ -156,7 +168,7 @@
             </div>
             <div>
               <span>图片能力</span>
-              <strong>内部文件服务</strong>
+              <strong>Helios 公共图片</strong>
             </div>
           </div>
         </CardContent>
@@ -177,7 +189,9 @@ import {
   shallowRef,
   watch,
 } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
+import { uploadDocumentImage } from "@/api/images";
+import { getActiveTemplate, documentTypes } from "@/api/management";
 import { Clock3, Save, Send } from "lucide-vue-next";
 import { createEditor, createToolbar } from "@wangeditor/editor";
 import type {
@@ -217,16 +231,33 @@ import { isHtmlContent, markdownToHtml, stripHtml } from "@/utils/markdown";
 const route = useRoute();
 const router = useRouter();
 const saving = ref(false);
+const uploading = ref(0);
+const imageStatus = ref("");
+const imageError = ref("");
+const imageRequests = new Set<AbortController>();
+
+function cancelImageUploads() {
+  for (const controller of imageRequests) controller.abort();
+  imageStatus.value = "已取消图片上传，可重新选择图片";
+}
+onBeforeRouteLeave(() => cancelImageUploads());
 const loading = ref(false);
 const message = ref("");
 const errorMessage = ref("");
 const currentDocument = ref<DocumentItem | null>(null);
 const projectOptions = ref<Array<{ label: string; value: string }>>([]);
 const editorRef = shallowRef<IDomEditor | null>(null);
+const imagePickerRef = ref<HTMLInputElement | null>(null);
 const toolbarRef = shallowRef<WangToolbar | null>(null);
 const toolbarContainerRef = ref<HTMLElement | null>(null);
 const editorContainerRef = ref<HTMLElement | null>(null);
 const isSyncingEditor = ref(false);
+const templateLoading = ref(false);
+const templateMessage = ref("");
+const templateError = ref("");
+let templateRequest: AbortController | undefined;
+let templateVersion = 0;
+let lastTemplateContent = "";
 
 const form = reactive({
   title: "",
@@ -237,15 +268,7 @@ const form = reactive({
   content: "",
 });
 
-const docTypeOptions = [
-  { label: "项目介绍", value: "intro" },
-  { label: "环境说明", value: "environment" },
-  { label: "部署说明", value: "deploy" },
-  { label: "API 说明", value: "api" },
-  { label: "账号/权限申请说明", value: "access" },
-  { label: "常见问题 FAQ", value: "faq" },
-  { label: "开发规范", value: "standard" },
-];
+const docTypeOptions = documentTypes;
 
 const toolbarConfig: Partial<IToolbarConfig> = {
   excludeKeys: ["group-video", "fullScreen"],
@@ -256,17 +279,38 @@ const editorConfig: Partial<IEditorConfig> = {
   scroll: false,
   MENU_CONF: {
     uploadImage: {
-      customUpload(
+      maxFileSize: 10 * 1024 * 1024,
+      allowedFileTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+      async customUpload(
         file: File,
         insertFn: (url: string, alt: string, href: string) => void,
       ) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result === "string") {
-            insertFn(reader.result, file.name, "");
+        if (saving.value) return;
+        const controller = new AbortController();
+        const editor = editorRef.value;
+        const documentRoute = route.fullPath;
+        imageRequests.add(controller);
+        uploading.value = imageRequests.size;
+        imageError.value = "";
+        try {
+          const result = await uploadDocumentImage(file, {
+            signal: controller.signal,
+            onStatus: (status) => {
+              if (!controller.signal.aborted) imageStatus.value = status;
+            },
+          });
+          if (controller.signal.aborted || editorRef.value !== editor || route.fullPath !== documentRoute) return;
+          insertFn(result.url, file.name, "");
+          imageStatus.value = result.reused ? "图片已存在，已复用并插入" : "图片已上传并插入";
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            imageError.value = error instanceof Error ? error.message : "图片上传失败，请重新选择图片重试";
+            imageStatus.value = "";
           }
-        };
-        reader.readAsDataURL(file);
+        } finally {
+          imageRequests.delete(controller);
+          uploading.value = imageRequests.size;
+        }
       },
     },
   },
@@ -276,6 +320,22 @@ const editorConfig: Partial<IEditorConfig> = {
     }
   },
 };
+
+async function uploadFromPicker(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  const editor = editorRef.value;
+  if (!file || !editor) return;
+  await editorConfig.MENU_CONF?.uploadImage?.customUpload(file, (url: string, alt: string) => {
+    editor.restoreSelection();
+    editor.focus();
+    const image = document.createElement("img");
+    image.src = url;
+    image.alt = alt;
+    editor.dangerouslyInsertHtml(image.outerHTML);
+  });
+}
 
 const selectedProjectName = computed(() => {
   return (
@@ -306,6 +366,9 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  templateRequest?.abort();
+  templateVersion++;
+  cancelImageUploads();
   toolbarRef.value?.destroy();
   editorRef.value?.destroy();
 });
@@ -313,8 +376,8 @@ onBeforeUnmount(() => {
 watch(
   () => form.type,
   () => {
-    if (!currentDocument.value) {
-      applyTemplateIfEmpty();
+    if (!currentDocument.value && !loading.value) {
+      void applyTemplateIfEmpty();
     }
   },
 );
@@ -346,7 +409,7 @@ async function hydrateFromRoute() {
       await loadExistingDocument(Number(form.projectId), form.type);
     }
     if (!currentDocument.value) {
-      applyTemplateIfEmpty();
+      await applyTemplateIfEmpty();
     }
   } finally {
     loading.value = false;
@@ -381,13 +444,32 @@ function fillDocument(document: DocumentItem) {
   syncEditorHtml();
 }
 
-function applyTemplateIfEmpty() {
-  if (form.title || form.content) {
-    return;
+async function applyTemplateIfEmpty() {
+  templateRequest?.abort();
+  const version = ++templateVersion;
+  templateLoading.value = false;
+  templateError.value = "";
+  templateMessage.value = "";
+  const hasContent = stripHtml(form.content) || /<(img|table|hr|video|audio)\b/i.test(form.content);
+  if (currentDocument.value || (hasContent && form.content !== lastTemplateContent)) return;
+  const type = form.type;
+  const before = form.content;
+  const controller = new AbortController();
+  templateRequest = controller;
+  templateLoading.value = true;
+  try {
+    const res = await getActiveTemplate(type, controller.signal);
+    if (version !== templateVersion || controller.signal.aborted || currentDocument.value || form.type !== type || form.content !== before) return;
+    form.content = res.data?.content || "";
+    lastTemplateContent = form.content;
+    if (!form.title) form.title = `${selectedProjectName.value}${selectedDocTypeLabel.value}`;
+    templateMessage.value = res.data ? `已使用模板「${res.data.name}」，可直接修改正文。` : "此类型暂无启用模板，请直接编写正文。";
+    syncEditorHtml();
+  } catch (error) {
+    if (version === templateVersion && !controller.signal.aborted) templateError.value = error instanceof Error ? error.message : "模板读取失败，可重试或直接编写正文";
+  } finally {
+    if (version === templateVersion) templateLoading.value = false;
   }
-  form.title = `${selectedProjectName.value}${selectedDocTypeLabel.value}`;
-  form.summary = `${selectedDocTypeLabel.value}待补充`;
-  form.content = documentTemplate(form.type);
 }
 
 async function saveDraft() {
@@ -399,6 +481,10 @@ async function publishDocument() {
 }
 
 async function save(status: "draft" | "published") {
+  if (uploading.value) {
+    errorMessage.value = "请等待图片处理完成，或取消上传后再保存";
+    return;
+  }
   message.value = "";
   errorMessage.value = "";
   if (!form.projectId) {
@@ -443,71 +529,6 @@ function buildSummary(content: string) {
         )
         .find(Boolean);
   return (plainText || "暂无摘要").slice(0, 120);
-}
-
-function documentTemplate(type: string) {
-  const title = selectedDocTypeLabel.value;
-  const projectName = selectedProjectName.value;
-  if (type === "environment") {
-    return `<h1>${title}</h1>
-<h2>测试环境</h2>
-<ul>
-  <li>测试地址：</li>
-  <li>测试账号：</li>
-  <li>联调注意事项：</li>
-</ul>
-<h2>线上环境</h2>
-<ul>
-  <li>线上地址：</li>
-  <li>监控入口：</li>
-  <li>告警联系人：</li>
-</ul>
-<h2>常见问题</h2>
-<ul>
-  <li></li>
-</ul>`;
-  }
-  if (type === "deploy") {
-    return `<h1>${title}</h1>
-<h2>发布前检查</h2>
-<ul>
-  <li>分支：</li>
-  <li>配置：</li>
-  <li>依赖服务：</li>
-</ul>
-<h2>发布步骤</h2>
-<ol>
-  <li></li>
-  <li></li>
-  <li></li>
-</ol>
-<h2>回滚方案</h2>
-<ul>
-  <li></li>
-</ul>`;
-  }
-  if (type === "api") {
-    return `<h1>${title}</h1>
-<h2>接口文档入口</h2>
-<ul>
-  <li>API 文档：</li>
-  <li>鉴权方式：</li>
-  <li>联调环境：</li>
-</ul>
-<h2>联调约定</h2>
-<ul>
-  <li></li>
-</ul>`;
-  }
-  return `<h1>${projectName}${title}</h1>
-<h2>背景</h2>
-<p></p>
-<h2>范围</h2>
-<p></p>
-<h2>维护说明</h2>
-<ul>
-  <li></li>
-</ul>`;
 }
 
 function mountWangEditor() {

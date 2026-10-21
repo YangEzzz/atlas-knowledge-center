@@ -118,7 +118,7 @@ func (h *PublicLinkHandler) Restore(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Restore(id); err != nil {
+	if err := h.service.Restore(id, currentUserID(c)); err != nil {
 		response.Error(c, http.StatusInternalServerError, "恢复工具导航失败: "+err.Error())
 		return
 	}

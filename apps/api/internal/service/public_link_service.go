@@ -104,8 +104,8 @@ func (s *PublicLinkService) Delete(id uint, actorID *uint) error {
 	return s.repo.Delete(id, actorID)
 }
 
-func (s *PublicLinkService) Restore(id uint) error {
-	return s.repo.Restore(id)
+func (s *PublicLinkService) Restore(id uint, actor ...*uint) error {
+	return s.repo.Restore(id, actor...)
 }
 
 func mapPublicLinks(links []models.PublicLink) []PublicLinkDTO {

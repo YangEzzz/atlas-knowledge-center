@@ -67,6 +67,7 @@ export interface ProjectSavePayload {
 }
 
 export interface ProjectEntryPayload {
+  id?: number
   type: string
   title: string
   url: string

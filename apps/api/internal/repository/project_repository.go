@@ -3,9 +3,12 @@ package repository
 import (
 	"strings"
 
+	"ty-notebook-api/internal/audit"
+	"ty-notebook-api/internal/lifecycle"
 	"ty-notebook-api/internal/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ProjectRepository struct {
@@ -95,21 +98,26 @@ func (r *ProjectRepository) Update(project *models.Project) error {
 
 func (r *ProjectRepository) Delete(id uint, deletedBy *uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		var project models.Project
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&project, id).Error; err != nil {
+			return err
+		}
 		if err := tx.Model(&models.Project{}).Where("id = ?", id).Update("deleted_by", deletedBy).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&models.Project{}, id).Error
+		if err := tx.Delete(&project).Error; err != nil {
+			return err
+		}
+		return audit.Write(tx, deletedBy, "project", id, project.Name, &id, "delete", "删除项目；子项保持原状态")
 	})
 }
 
-func (r *ProjectRepository) Restore(id uint) error {
-	return r.db.Unscoped().
-		Model(&models.Project{}).
-		Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"deleted_at": nil,
-			"deleted_by": nil,
-		}).Error
+func (r *ProjectRepository) Restore(id uint, actor ...*uint) error {
+	var user *uint
+	if len(actor) > 0 {
+		user = actor[0]
+	}
+	return lifecycle.Restore(r.db, "project", id, user)
 }
 
 func (r *ProjectRepository) ReplaceOwners(projectID uint, owners []models.ProjectOwner) error {
@@ -126,12 +134,7 @@ func (r *ProjectRepository) ReplaceOwners(projectID uint, owners []models.Projec
 
 func (r *ProjectRepository) ReplaceEntries(projectID uint, entries []models.ProjectEntry) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Unscoped().Where("project_id = ?", projectID).Delete(&models.ProjectEntry{}).Error; err != nil {
-			return err
-		}
-		if len(entries) == 0 {
-			return nil
-		}
-		return tx.Create(&entries).Error
+		_, err := saveEntries(tx, projectID, entries, nil)
+		return err
 	})
 }

@@ -24,6 +24,7 @@ import GlobalSearch from "@/components/app/GlobalSearch.vue";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/composables/use-auth";
 import { useAuthStore } from "@/store/auth";
+import { canManage } from "@/utils/management-access";
 import { openSearch } from "@/composables/use-search-dialog";
 const authStore = useAuthStore();
 const { logout, loading: logoutLoading } = useAuth();
@@ -106,7 +107,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
         </div>
       </nav>
       <div class="sidebar-footer">
-        <RouterLink to="/manage" class="nav-item"
+        <RouterLink v-if="canManage(authStore.user?.roles)" to="/manage" class="nav-item"
           ><Settings class="nav-icon" aria-hidden="true" />管理中心</RouterLink
         >
         <div class="sidebar-user">
@@ -161,7 +162,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKey));
             }}</RouterLink
           >
         </nav>
-        <RouterLink to="/manage" class="nav-item" @click="mobileOpen = false"
+        <RouterLink v-if="canManage(authStore.user?.roles)" to="/manage" class="nav-item" @click="mobileOpen = false"
           ><Settings class="nav-icon" />管理中心</RouterLink
         ><Button variant="secondary" :disabled="logoutLoading" @click="logout"
           >退出登录</Button

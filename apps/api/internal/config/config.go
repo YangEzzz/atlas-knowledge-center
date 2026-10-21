@@ -38,10 +38,12 @@ type Config struct {
 	HeliosProjectID    string
 	HeliosAllowedRoles []string
 
-	FileServiceBaseURL    string
-	FileServiceUploadPath string
-	FileServiceToken      string
-	MaxUploadSizeMB       int
+	FileServiceBaseURL     string
+	FileServiceUploadPath  string
+	FileServiceToken       string
+	MaxUploadSizeMB        int
+	HeliosImageInternalURL string
+	HeliosImagePublicURL   string
 }
 
 func Load() Config {
@@ -82,6 +84,8 @@ func Load() Config {
 		MaxUploadSizeMB:       getIntEnv("MAX_UPLOAD_SIZE_MB", 10),
 	}
 	var err error
+	cfg.HeliosImageInternalURL = getEnv("HELIOS_IMAGE_INTERNAL_URL", cfg.HeliosInternalURL)
+	cfg.HeliosImagePublicURL = getEnv("HELIOS_IMAGE_PUBLIC_URL", cfg.HeliosBaseURL)
 	cfg.HeliosRedirectURI, err = resolveSSORedirect(cfg.FrontendURL, getEnv("PUBLIC_API_URL", ""), getEnv("HELIOS_REDIRECT_URI", ""))
 	if err != nil {
 		log.Fatal(err)

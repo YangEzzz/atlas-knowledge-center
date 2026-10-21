@@ -143,7 +143,7 @@ func (h *DocumentHandler) Restore(c *gin.Context) {
 		return
 	}
 
-	document, err := h.service.Restore(id)
+	document, err := h.service.Restore(id, currentUserID(c))
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, "恢复文档失败: "+err.Error())
 		return
