@@ -11,7 +11,7 @@
         <ArrowLeft class="button-icon" />
         返回文档库
       </Button>
-      <Button v-if="document" variant="outline" @click="goProject">
+      <Button v-if="document?.projectId" variant="outline" @click="goProject">
         <FolderKanban class="button-icon" />
         查看项目
       </Button>
@@ -29,11 +29,7 @@
         />
         {{ isCurrentDocumentFavorite ? "已收藏" : "收藏" }}
       </Button>
-      <Button
-        v-if="document"
-          variant="ghost"
-        @click="deleteDialogOpen = true"
-      >
+      <Button v-if="document" variant="ghost" @click="deleteDialogOpen = true">
         <Trash2 class="button-icon" />
         删除
       </Button>
@@ -436,7 +432,9 @@ const isSelectedCurrentVersion = computed(() => {
 });
 const projectName = computed(() => {
   if (!document.value) return "-";
-  return `项目 #${document.value.projectId}`;
+  return document.value.projectId
+    ? `项目 #${document.value.projectId}`
+    : "不关联项目";
 });
 const statusClass = computed(() => {
   if (document.value?.status === "published") return "ui-badge--success";
@@ -484,7 +482,11 @@ async function loadDocument() {
   }
 }
 
-async function loadProject(projectId: number) {
+async function loadProject(projectId: number | null) {
+  if (!projectId) {
+    project.value = null;
+    return;
+  }
   try {
     const res = await getProject(projectId);
     project.value = res.data;
@@ -498,7 +500,7 @@ function goDocuments() {
 }
 
 function goProject() {
-  if (!document.value) return;
+  if (!document.value?.projectId) return;
   router.push({
     name: "ProjectDetail",
     params: { id: document.value.projectId },
@@ -510,8 +512,7 @@ function goEditor() {
   router.push({
     path: "/documents/editor",
     query: {
-      projectId: String(document.value.projectId),
-      type: document.value.type,
+      id: String(document.value.id),
     },
   });
 }
@@ -626,7 +627,9 @@ function documentRecordPayload(item: DocumentItem) {
     kind: "document" as const,
     targetId: item.id,
     title: item.title,
-    projectName: project.value?.name || `项目 #${item.projectId}`,
+    projectName: item.projectId
+      ? project.value?.name || `项目 #${item.projectId}`
+      : "通用文档",
     description: item.summary || "暂无摘要",
     path: `/documents/${item.id}`,
     badge: item.typeLabel,

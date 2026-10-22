@@ -5,6 +5,8 @@ import { createRouter, createMemoryHistory, RouterView } from "vue-router";
 import request from "../src/request";
 import { useAuthStore } from "../src/store/auth";
 import { Toaster } from "../src/components/ui/sonner";
+import AppUiProvider from "../src/components/app/AppUiProvider.vue";
+import appRouter from "../src/router";
 import AppLayout from "../src/layouts/AppLayout.vue";
 import Home from "../src/views/Home/index.vue";
 import Projects from "../src/views/Projects/index.vue";
@@ -143,6 +145,7 @@ const documents = [
     summary: "测试环境地址及账号申请方式。",
     content: "# 测试环境\n\n联系项目负责人申请账号。",
   },
+  { id: 204, projectId: null, type: "general", typeLabel: "通用文档", title: "团队协作指南", summary: "通用知识，无需关联项目。", content: "<p>团队共用的指南。</p>" },
 ].map((doc) => ({
   ...doc,
   status: "published",
@@ -190,6 +193,7 @@ window.fetch = (input, init) => String(input).endsWith('/auth/csrf')
   ? Promise.resolve(Response.json({ code: 200, data: { csrf_token: 'preview-only' } }))
   : originalPreviewFetch(input, init);
 const previewImages = new Map<string, object>();
+let editorFailures = 0;
 let imageFailures = scenario === 'image-error' ? 1 : 0;
 // Disposable examples only. Local-account tests use isolated, disposable browser contexts.
 let accountId = 401;
@@ -250,8 +254,11 @@ request.defaults.adapter = async (config) => {
   const switchingProject = scenario === "project-switch" && /^\/projects\/\d+$/.test(url);
   const requestDelay = url.startsWith('/images/') && scenario === 'image-slow' ? 5000 : switchingProject ? (url.endsWith('/101') ? 1500 : 500) : delay;
   await new Promise((resolve) => setTimeout(resolve, requestDelay));
+  if (scenario === "project-list-error" && url === "/projects") throw new Error("项目列表暂时不可用");
   if (scenario === "error") throw new Error("暂时无法读取资料，请稍后重试。");
   if (switchingProject && url.endsWith('/103')) throw new Error('项目暂时无法加载');
+  let responseCode = 200;
+  let responseMessage = "ok";
   let data: unknown = {};
   if (url.startsWith('/manage/') || url.startsWith('/document-templates/active/')) data = await managementPreview(config);
   else if (url.startsWith('/images/')) {
@@ -357,17 +364,34 @@ request.defaults.adapter = async (config) => {
       data = saved;
     } else data = url === "/projects" ? list(projects, config) : projects.find((p) => p.id === Number(url.split("/").pop()));
   }
+  else if (url === "/documents" && config.method === "post") {
+    if (scenario === "document-save-error" && editorFailures++ === 0) throw new Error("保存文档失败，请重试");
+    if (scenario === "document-save-slow") await new Promise(resolve => setTimeout(resolve, 1200));
+    const input = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+    const existing = documents.find(d => d.id === input.id);
+    if (input.projectId && documents.some(d => d.id !== input.id && d.projectId === input.projectId && d.type === input.type)) throw new Error("该项目已有同类型文档，请从文档库打开后编辑");
+    const saved = { ...input, id: existing?.id || Math.max(...documents.map(d => d.id), 998) + 1, typeLabel: input.type, statusLabel: input.status === "published" ? "已发布" : "草稿", currentVersionNo: (existing?.currentVersionNo || 0) + 1, createdAt: now, updatedAt: now };
+    if (existing) Object.assign(existing, saved); else documents.push(saved);
+    data = saved;
+  }
   else if (url === "/documents" || url === "/documents/trash")
     data = list(documents, config);
-  else if (/^\/documents\/\d+$/.test(url))
+  else if (/^\/documents\/\d+$/.test(url)) {
+    if (scenario === "document-load-error" && editorFailures++ === 0) throw new Error("读取文档失败，请重试");
     data = documents.find((d) => d.id === Number(url.split("/").pop()));
-  else if (url.startsWith("/documents/project/"))
+  }
+  else if (url.startsWith("/documents/project/")) {
+    if (scenario === "document-load-error" && editorFailures++ === 0) throw new Error("读取文档失败，请重试");
+    if (scenario === "document-load-slow") await new Promise(resolve => setTimeout(resolve, 1200));
     data =
       documents.find(
         (d) =>
           d.projectId === Number(url.split("/")[3]) &&
           d.type === url.split("/").pop(),
       ) || null;
+    if (!data) { responseCode = 404; responseMessage = "文档不存在"; }
+    if (scenario === "document-business-error") { responseCode = 500; responseMessage = "文档读取暂时不可用"; data = null; }
+  }
   else if (url.includes("/versions")) data = { list: [] };
   else if (url === "/public-links") data = list(tools, config);
   else if (/^\/public-links\/\d+$/.test(url)) data = tools.find(tool => tool.id === Number(url.split('/').pop()));
@@ -376,11 +400,11 @@ request.defaults.adapter = async (config) => {
     statusText: "OK",
     headers: {},
     config,
-    data: { code: 200, message: "ok", data },
+    data: { code: responseCode, message: responseMessage, data },
   };
 };
 const pinia = createPinia();
-const router = createRouter({
+const router = new URLSearchParams(location.search).has("history") ? appRouter : createRouter({
   history: createMemoryHistory(),
   routes: [
     {
@@ -409,7 +433,7 @@ const router = createRouter({
 });
 const app = createApp({
   render: () =>
-    h("div", [
+    h(AppUiProvider, null, () => [
       h(RouterView),
       h(Toaster),
       h(
@@ -428,6 +452,7 @@ useAuthStore().setUser({
   displayName: "杨林",
   roles: ["admin"],
 });
+useAuthStore().initialized = true;
 localStorage.removeItem("ty-notebook:personal-records:ui-preview:entries-imported");
 localStorage.setItem(
   "ty-notebook:personal-records:ui-preview",

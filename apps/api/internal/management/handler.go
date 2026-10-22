@@ -277,7 +277,7 @@ type TrashItem struct {
 
 const trashSQL = `SELECT p.id, p.name, 'project' AS object_type, p.id AS project_id, p.name AS project_name, p.deleted_by, p.deleted_at, false AS parent_deleted FROM projects p WHERE p.deleted_at IS NOT NULL
 UNION ALL SELECT e.id, e.title, 'entry', e.project_id, COALESCE(p.name,''), e.deleted_by, e.deleted_at, (p.id IS NULL OR p.deleted_at IS NOT NULL) FROM project_entries e LEFT JOIN projects p ON p.id=e.project_id WHERE e.deleted_at IS NOT NULL
-UNION ALL SELECT d.id, d.title, 'document', d.project_id, COALESCE(p.name,''), d.deleted_by, d.deleted_at, (p.id IS NULL OR p.deleted_at IS NOT NULL) FROM project_documents d LEFT JOIN projects p ON p.id=d.project_id WHERE d.deleted_at IS NOT NULL
+UNION ALL SELECT d.id, d.title, 'document', d.project_id, COALESCE(p.name,''), d.deleted_by, d.deleted_at, (d.project_id IS NOT NULL AND (p.id IS NULL OR p.deleted_at IS NOT NULL)) FROM project_documents d LEFT JOIN projects p ON p.id=d.project_id WHERE d.deleted_at IS NOT NULL
 UNION ALL SELECT t.id, t.name, 'tool', NULL::bigint, '', t.deleted_by, t.deleted_at, false FROM public_links t WHERE t.deleted_at IS NOT NULL`
 
 func (h *Handler) Trash(c *gin.Context) {

@@ -43,7 +43,7 @@ func Restore(db *gorm.DB, kind string, id uint, actor *uint) error {
 			project = &item.ProjectID
 		case *models.ProjectDocument:
 			name = item.Title
-			project = &item.ProjectID
+			project = item.ProjectID
 		case *models.PublicLink:
 			name = item.Name
 		}

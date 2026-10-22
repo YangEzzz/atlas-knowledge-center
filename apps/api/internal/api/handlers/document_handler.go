@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
+
+	"gorm.io/gorm"
 
 	"ty-notebook-api/internal/api/response"
 	"ty-notebook-api/internal/repository"
@@ -98,7 +101,11 @@ func (h *DocumentHandler) GetByProjectAndType(c *gin.Context) {
 
 	document, err := h.service.GetByProjectAndType(projectID, docType)
 	if err != nil {
-		response.Error(c, http.StatusNotFound, "文档不存在")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Error(c, http.StatusNotFound, "文档不存在")
+		} else {
+			response.Error(c, http.StatusInternalServerError, "读取文档失败，请稍后重试")
+		}
 		return
 	}
 

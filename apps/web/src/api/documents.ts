@@ -2,7 +2,7 @@ import { api } from '@/request'
 
 export interface DocumentItem {
   id: number
-  projectId: number
+  projectId: number | null
   type: string
   typeLabel: string
   title: string
@@ -50,7 +50,8 @@ export interface DocumentVersionListResponse {
 }
 
 export interface DocumentSavePayload {
-  projectId: number
+  id?: number
+  projectId: number | null
   type: string
   title: string
   summary: string

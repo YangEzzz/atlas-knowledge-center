@@ -14,10 +14,20 @@ func main() {
 	personalAccounts := flag.Bool("accounts", false, "Create only the personal accounts table")
 	multipleEntries := flag.Bool("multiple-project-entries", false, "Allow multiple project entries of the same type")
 	management := flag.Bool("management", false, "Create management templates and audit tables only")
+	standaloneDocs := flag.Bool("standalone-documents", false, "Allow documents without an associated project")
 	flag.Parse()
 	cfg := config.Load()
 	if cfg.DBName != "atlas_db" {
 		log.Fatal("Atlas initialization only supports the dedicated atlas_db database")
+	}
+	if *standaloneDocs {
+		cfg.AutoMigrate = false
+		database.Connect(cfg)
+		if err := database.AllowStandaloneDocuments(database.DB); err != nil {
+			log.Fatal(err)
+		}
+		log.Println("Standalone documents enabled")
+		return
 	}
 	if *management {
 		cfg.AutoMigrate = false

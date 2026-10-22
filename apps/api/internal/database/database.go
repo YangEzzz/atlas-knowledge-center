@@ -58,6 +58,9 @@ func Connect(cfg config.Config) {
 		); err != nil {
 			log.Fatalf("Failed to auto migrate database: %v", err)
 		}
+		if err := AllowStandaloneDocuments(DB); err != nil {
+			log.Fatalf("Failed to migrate optional document project: %v", err)
+		}
 		if err := AllowMultipleProjectEntries(DB); err != nil {
 			log.Fatalf("Failed to migrate project entry index: %v", err)
 		}
@@ -74,4 +77,10 @@ func Connect(cfg config.Config) {
 // AutoMigrate does not remove indexes that disappear from model tags.
 func AllowMultipleProjectEntries(db *gorm.DB) error {
 	return db.Exec("DROP INDEX IF EXISTS idx_project_entry_unique").Error
+}
+
+// AllowStandaloneDocuments preserves project associations and the existing per-project
+// type constraint. PostgreSQL allows multiple NULL projects in a unique index.
+func AllowStandaloneDocuments(db *gorm.DB) error {
+	return db.Exec("ALTER TABLE project_documents ALTER COLUMN project_id DROP NOT NULL").Error
 }

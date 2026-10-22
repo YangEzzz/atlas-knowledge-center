@@ -44,7 +44,7 @@ func (r *DocumentRepository) list(filter DocumentListFilter, deletedOnly bool) (
 	if deletedOnly {
 		query = query.Unscoped().Where("deleted_at IS NOT NULL")
 	} else {
-		query = query.Where("EXISTS (SELECT 1 FROM projects WHERE projects.id = project_documents.project_id AND projects.deleted_at IS NULL)")
+		query = query.Where("(project_documents.project_id IS NULL OR EXISTS (SELECT 1 FROM projects WHERE projects.id = project_documents.project_id AND projects.deleted_at IS NULL))")
 	}
 	if filter.ProjectID > 0 {
 		query = query.Where("project_id = ?", filter.ProjectID)
@@ -127,9 +127,11 @@ func (r *DocumentRepository) Update(document *models.ProjectDocument) error {
 
 func (r *DocumentRepository) SaveWithVersion(document *models.ProjectDocument, version *models.DocumentVersion, restoring ...bool) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		var parent models.Project
-		if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).First(&parent, document.ProjectID).Error; err != nil {
-			return err
+		if document.ProjectID != nil {
+			var parent models.Project
+			if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).First(&parent, *document.ProjectID).Error; err != nil {
+				return err
+			}
 		}
 		action := "update"
 		if document.ID == 0 {
@@ -158,7 +160,7 @@ func (r *DocumentRepository) SaveWithVersion(document *models.ProjectDocument, v
 		if len(restoring) > 0 && restoring[0] {
 			action = "restore_version"
 		}
-		return audit.Write(tx, version.CreatedBy, "document", document.ID, document.Title, &document.ProjectID, action, version.ChangeSummary, "标题", "摘要", "正文", "状态")
+		return audit.Write(tx, version.CreatedBy, "document", document.ID, document.Title, document.ProjectID, action, version.ChangeSummary, "标题", "摘要", "正文", "状态")
 	})
 }
 
@@ -201,7 +203,7 @@ func (r *DocumentRepository) Delete(document *models.ProjectDocument, actorID *u
 		if err := tx.Delete(document).Error; err != nil {
 			return err
 		}
-		return audit.Write(tx, actorID, "document", document.ID, document.Title, &document.ProjectID, "delete", "删除文档")
+		return audit.Write(tx, actorID, "document", document.ID, document.Title, document.ProjectID, "delete", "删除文档")
 	})
 }
 

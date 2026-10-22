@@ -1,179 +1,332 @@
 <template>
-  <PageHeader
-    eyebrow="文档编辑"
-    title="编辑文档"
-    description="直接维护真实文档内容，可插入图片、记录变更，并按项目关联文档类型。"
-  >
-    <template #actions>
-      <Button
-        variant="outline"
-        :disabled="!currentDocument"
-        @click="
-          currentDocument &&
-          router.push({
-            name: 'DocumentDetail',
-            params: { id: currentDocument.id },
-          })
-        "
-      >
-        <Clock3 class="button-icon" />
-        查看记录
-      </Button>
-      <Button variant="secondary" :disabled="saving || uploading" @click="saveDraft">
-        <Save class="button-icon" />
-        {{ saving ? "保存中..." : "保存草稿" }}
-      </Button>
-      <Button :disabled="saving || uploading" @click="publishDocument">
-        <Send class="button-icon" />
-        发布
-      </Button>
-    </template>
-  </PageHeader>
-
-  <Card class="filter-card">
-    <CardContent>
-      <div v-if="message" class="notice">{{ message }}</div>
-      <div v-if="errorMessage" class="notice notice-error">
-        {{ errorMessage }}
-      </div>
-      <div class="form-grid">
-        <label class="ui-field">
-          <span>文档标题</span>
-          <Input
-            v-model="form.title"
-            class="ui-input"
-            placeholder="例如：云手机用户端环境说明"
-          />
-        </label>
-        <label class="ui-field">
-          <span>所属项目</span>
-          <UiSelect v-model="form.projectId">
-            <SelectTrigger class="ui-select-trigger">
-              <SelectValue placeholder="请选择所属项目" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="item in projectOptions"
-                :key="item.value"
-                :value="item.value"
-              >
-                {{ item.label }}
-              </SelectItem>
-            </SelectContent>
-          </UiSelect>
-        </label>
-        <label class="ui-field">
-          <span>文档类型</span>
-          <UiSelect v-model="form.type">
-            <SelectTrigger class="ui-select-trigger">
-              <SelectValue placeholder="请选择文档类型" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="item in docTypeOptions"
-                :key="item.value"
-                :value="item.value"
-              >
-                {{ item.label }}
-              </SelectItem>
-            </SelectContent>
-          </UiSelect>
-        </label>
-      </div>
-    </CardContent>
-  </Card>
-
-  <div class="editor-layout">
-    <Card>
-      <CardHeader class="ui-card-header">
-        <div>
-          <CardTitle>正文</CardTitle>
+  <div class="document-composer">
+    <PageHeader
+      title="编辑文档"
+      description="直接编写文档，也可以按需关联项目。"
+    >
+      <template #actions>
+        <Button
+          variant="outline"
+          :disabled="saving"
+          @click="router.push('/documents')"
+          ><ArrowLeft class="button-icon" />返回文档库</Button
+        >
+        <Button
+          v-if="contextReady"
+          variant="outline"
+          :disabled="busy"
+          @click="previewOpen = true"
+          ><Eye class="button-icon" />预览</Button
+        >
+        <Button
+          variant="secondary"
+          class="min-w-28"
+          :disabled="busy || !contextReady"
+          @click="saveDraft"
+        >
+          <Loader2 v-if="saving" class="button-icon animate-spin" /><Save
+            v-else
+            class="button-icon"
+          />保存草稿
+        </Button>
+        <Button
+          class="min-w-28"
+          :disabled="busy || !contextReady"
+          @click="publishDocument"
+          ><Send class="button-icon" />发布文档</Button
+        >
+      </template>
+    </PageHeader>
+    <div v-if="message" class="notice" role="status">{{ message }}</div>
+    <div
+      v-if="errorMessage"
+      id="document-save-error"
+      class="notice notice-error"
+      role="alert"
+    >
+      {{ errorMessage }}
+    </div>
+    <Card :aria-busy="loading">
+      <CardContent class="space-y-4">
+        <div class="composer-context">
+          <p class="text-sm text-muted-foreground">
+            {{
+              currentDocument
+                ? "正在编辑已保存的文档"
+                : "新文档 · 项目关联为选填"
+            }}
+          </p>
+          <Badge variant="secondary">{{ statusLabel }}</Badge>
         </div>
-        <CardAction>
-          <input ref="imagePickerRef" type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="sr-only" tabindex="-1" aria-label="选择文档图片" @change="uploadFromPicker" />
-          <Button type="button" variant="outline" size="sm" :disabled="saving || !editorRef" @click="imagePickerRef?.click()">上传图片</Button>
-          <Badge variant="secondary" class="ui-badge ui-badge--default"
-            >富文本</Badge
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="ui-field">
+            <label for="document-project"
+              >关联项目
+              <span class="font-normal text-muted-foreground"
+                >（选填）</span
+              ></label
+            >
+            <UiSelect
+              v-model="selectedProject"
+              :disabled="busy || projectsLoading"
+            >
+              <SelectTrigger id="document-project" class="w-full"
+                ><SelectValue
+                  >{{ selectedProjectName
+                  }}<template v-if="!form.projectId"
+                    >（通用文档）</template
+                  ></SelectValue
+                ></SelectTrigger
+              >
+              <SelectContent>
+                <SelectItem value="__none__">不关联项目（通用文档）</SelectItem>
+                <SelectItem
+                  v-for="item in availableProjectOptions"
+                  :key="item.value"
+                  :value="item.value"
+                  >{{ item.label }}</SelectItem
+                >
+              </SelectContent>
+            </UiSelect>
+          </div>
+          <div class="ui-field">
+            <label for="document-type">文档类型</label>
+            <UiSelect v-model="form.type" :disabled="busy">
+              <SelectTrigger id="document-type" class="w-full"
+                ><SelectValue
+              /></SelectTrigger>
+              <SelectContent
+                ><SelectItem
+                  v-for="item in docTypeOptions"
+                  :key="item.value"
+                  :value="item.value"
+                  >{{ item.label }}</SelectItem
+                ></SelectContent
+              >
+            </UiSelect>
+          </div>
+        </div>
+        <p
+          v-if="projectsLoading"
+          class="text-sm text-muted-foreground"
+          role="status"
+        >
+          正在加载可关联的项目，不影响编写通用文档。
+        </p>
+        <div
+          v-if="projectLoadError"
+          class="flex flex-wrap items-center gap-2 text-sm"
+          role="alert"
+        >
+          <span>{{ projectLoadError }}，仍可编写不关联项目的文档。</span
+          ><Button variant="outline" size="sm" @click="loadProjects"
+            >重试项目列表</Button
           >
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        <div class="mb-3 flex min-h-6 flex-wrap items-center gap-2 text-sm" aria-live="polite">
-          <span v-if="templateLoading" role="status">正在读取文档模板…</span>
-          <template v-else-if="templateError"><span role="alert" class="text-destructive">{{ templateError }}</span><Button type="button" variant="outline" size="sm" @click="applyTemplateIfEmpty">重试模板</Button></template>
-          <span v-else-if="templateMessage" class="text-muted-foreground">{{ templateMessage }}</span>
         </div>
-        <p class="mb-3 text-sm leading-6 text-muted-foreground">支持标题、表格、链接和图片。图片支持 JPG、PNG、GIF、WebP，最大 10MB，相同内容自动复用。</p>
-        <div class="mb-3 flex min-h-9 flex-wrap items-center gap-2 text-sm" aria-live="polite">
-          <span v-if="uploading" role="status">{{ imageStatus }}（{{ uploading }} 张处理中）</span>
-          <span v-else-if="imageError" role="alert" class="text-destructive">{{ imageError }}</span>
-          <span v-else-if="imageStatus" role="status">{{ imageStatus }}</span>
-          <span v-else class="text-muted-foreground">上传的文档配图为公共图片，请勿包含私人资料。</span>
-          <Button v-if="uploading" type="button" variant="outline" size="sm" @click="cancelImageUploads">取消上传</Button>
-        </div>
-        <div class="wang-editor-shell">
-          <div ref="toolbarContainerRef" class="wang-editor-toolbar" />
-          <div ref="editorContainerRef" class="wang-editor-body" />
+        <p v-if="loading" role="status" class="text-sm text-muted-foreground">
+          正在加载文档资料…
+        </p>
+        <div
+          v-if="loadError"
+          class="flex flex-wrap items-center gap-2"
+          role="alert"
+        >
+          <span class="text-sm text-destructive">{{ loadError }}</span
+          ><Button variant="outline" size="sm" @click="initialize"
+            >重新加载</Button
+          >
         </div>
       </CardContent>
     </Card>
-
-    <div class="side-stack">
+    <form
+      v-show="contextReady"
+      novalidate
+      class="space-y-5"
+      @submit.prevent="saveDraft"
+    >
       <Card>
-        <CardHeader class="ui-card-header">
-          <div>
-            <CardTitle>预览</CardTitle>
-            <CardDescription>按阅读页样式展示当前富文本内容。</CardDescription>
+        <CardContent class="space-y-5">
+          <div class="ui-field">
+            <label for="document-title"
+              >文档标题
+              <span class="font-normal text-muted-foreground"
+                >（必填）</span
+              ></label
+            >
+            <Input
+              id="document-title"
+              v-model="form.title"
+              :disabled="saving"
+              :aria-invalid="invalidTitle"
+              :aria-describedby="
+                invalidTitle ? 'document-save-error' : undefined
+              "
+              placeholder="为文档起一个清楚的标题"
+            />
           </div>
-        </CardHeader>
-        <CardContent>
-          <div class="rich-preview">
-            <div class="preview-document-head">
-              <h2>{{ form.title || "未命名文档" }}</h2>
-              <p>{{ selectedProjectName }} / {{ selectedDocTypeLabel }}</p>
-            </div>
-            <div
-              class="preview-document-body rich-document-body"
-              v-html="previewHtml"
+          <div class="ui-field">
+            <label for="document-summary"
+              >内容摘要
+              <span class="font-normal text-muted-foreground"
+                >（选填）</span
+              ></label
+            >
+            <Textarea
+              id="document-summary"
+              v-model="form.summary"
+              class="min-h-20 resize-none"
+              :disabled="saving"
+              placeholder="简要说明这篇文档的内容；留空时从正文提取"
             />
           </div>
         </CardContent>
       </Card>
-
       <Card>
-        <CardHeader class="ui-card-header">
-          <div>
-            <CardTitle>属性</CardTitle>
-            <CardDescription>用于搜索、过期提醒和权限对接。</CardDescription>
+        <CardHeader>
+          <div class="composer-context">
+            <CardTitle>正文</CardTitle>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-xs text-muted-foreground"
+                >{{ wordCount }} 字</span
+              >
+              <input
+                ref="imagePickerRef"
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                class="sr-only"
+                tabindex="-1"
+                aria-label="选择文档图片"
+                @change="uploadFromPicker"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                :disabled="busy || !editorRef"
+                @click="imagePickerRef?.click()"
+                ><ImagePlus class="button-icon" />上传图片</Button
+              >
+            </div>
           </div>
-          <CardAction>
-            <Badge variant="secondary" class="ui-badge ui-badge--success"
-              >手动保存</Badge
+          <div
+            v-if="templateLoading || templateError || templateMessage"
+            class="flex flex-wrap items-center gap-2 text-sm"
+            aria-live="polite"
+          >
+            <span v-if="templateLoading" role="status">正在读取文档模板…</span>
+            <template v-else-if="templateError"
+              ><span role="alert" class="text-destructive">{{
+                templateError
+              }}</span
+              ><Button
+                type="button"
+                variant="outline"
+                size="sm"
+                :disabled="busy"
+                @click="applyTemplateIfEmpty"
+                >重试模板</Button
+              ></template
             >
-          </CardAction>
+            <span v-else class="text-muted-foreground">{{
+              templateMessage
+            }}</span>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div class="property-list">
-            <div>
-              <span>维护人</span>
-              <strong>研发用户</strong>
-            </div>
-            <div>
-              <span>文档状态</span>
-              <strong>{{ statusLabel }}</strong>
-            </div>
-            <div>
-              <span>可见范围</span>
-              <strong>暂不限制</strong>
-            </div>
-            <div>
-              <span>图片能力</span>
-              <strong>Helios 公共图片</strong>
-            </div>
+        <CardContent class="space-y-3">
+          <div class="wang-editor-shell">
+            <div ref="toolbarContainerRef" class="wang-editor-toolbar" />
+            <div ref="editorContainerRef" class="wang-editor-body" />
+          </div>
+          <div
+            class="flex flex-wrap items-center gap-2 text-xs leading-6 text-muted-foreground"
+            aria-live="polite"
+          >
+            <span v-if="uploading" role="status"
+              >{{ imageStatus }}（{{ uploading }} 张处理中）</span
+            >
+            <span
+              v-else-if="imageError"
+              role="alert"
+              class="text-destructive"
+              >{{ imageError }}</span
+            >
+            <span v-else-if="imageStatus" role="status">{{ imageStatus }}</span>
+            <Button
+              v-if="uploading"
+              type="button"
+              variant="outline"
+              size="sm"
+              @click="cancelImageUploads"
+              >取消上传</Button
+            >
+            <span
+              >图片支持 JPG、PNG、GIF、WebP，最大
+              10MB。上传后可公开访问，请勿包含私人资料。</span
+            >
           </div>
         </CardContent>
       </Card>
-    </div>
+      <div class="composer-footer" aria-live="polite">
+        <span
+          >{{
+            dirty
+              ? "有未保存的修改"
+              : currentDocument
+                ? "修改已保存"
+                : "新文档尚未保存"
+          }}<template v-if="currentDocument">
+            · 版本 {{ currentDocument.currentVersionNo }}</template
+          ></span
+        >
+        <span>保存草稿和发布都会生成版本记录。</span>
+      </div>
+    </form>
+    <Dialog v-model:open="previewOpen">
+      <DialogContent
+        class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-4xl"
+      >
+        <DialogHeader
+          ><DialogTitle>文档预览</DialogTitle
+          ><DialogDescription
+            >查看当前编辑内容，预览不会保存或发布。</DialogDescription
+          ></DialogHeader
+        >
+        <article class="min-w-0 space-y-4 break-words">
+          <header class="space-y-2 border-b pb-4">
+            <h2 class="text-2xl font-semibold">
+              {{ form.title || "请填写文档标题" }}
+            </h2>
+            <p class="text-sm text-muted-foreground">
+              {{ selectedProjectName }} · {{ selectedDocTypeLabel }}
+            </p>
+            <p v-if="form.summary" class="text-sm text-muted-foreground">
+              {{ form.summary }}
+            </p>
+          </header>
+          <div
+            class="preview-document-body rich-document-body"
+            v-html="previewHtml"
+          />
+        </article>
+      </DialogContent>
+    </Dialog>
+    <Dialog v-model:open="discardOpen">
+      <DialogContent>
+        <DialogHeader
+          ><DialogTitle>放弃未保存的修改？</DialogTitle
+          ><DialogDescription
+            >离开文档会丢失本次未保存的内容，并取消正在上传的图片。</DialogDescription
+          ></DialogHeader
+        >
+        <DialogFooter
+          ><Button variant="outline" @click="discardOpen = false"
+            >继续编辑</Button
+          ><Button variant="destructive" @click="discardChanges"
+            >放弃更改</Button
+          ></DialogFooter
+        >
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -189,10 +342,23 @@ import {
   shallowRef,
   watch,
 } from "vue";
-import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
+import {
+  onBeforeRouteLeave,
+  onBeforeRouteUpdate,
+  useRoute,
+  useRouter,
+} from "vue-router";
+import { ApiResponseError } from "@/request";
 import { uploadDocumentImage } from "@/api/images";
 import { getActiveTemplate, documentTypes } from "@/api/management";
-import { Clock3, Save, Send } from "lucide-vue-next";
+import {
+  ArrowLeft,
+  Eye,
+  ImagePlus,
+  Loader2,
+  Save,
+  Send,
+} from "lucide-vue-next";
 import { createEditor, createToolbar } from "@wangeditor/editor";
 import type {
   IDomEditor,
@@ -201,7 +367,7 @@ import type {
   Toolbar as WangToolbar,
 } from "@wangeditor/editor";
 import {
-  getDocuments,
+  getDocument,
   getProjectDocument,
   saveDocument,
   type DocumentItem,
@@ -209,14 +375,7 @@ import {
 import { getProjects } from "@/api/projects";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import PageHeader from "@/components/ui/PageHeader.vue";
 import {
@@ -226,6 +385,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { destroyRichEditor } from "@/utils/destroy-rich-editor";
+import { Textarea } from "@/components/ui/textarea";
 import { isHtmlContent, markdownToHtml, stripHtml } from "@/utils/markdown";
 
 const route = useRoute();
@@ -240,8 +409,103 @@ function cancelImageUploads() {
   for (const controller of imageRequests) controller.abort();
   imageStatus.value = "已取消图片上传，可重新选择图片";
 }
-onBeforeRouteLeave(() => cancelImageUploads());
-const loading = ref(false);
+
+const loading = ref(true);
+const contextReady = ref(false);
+const loadError = ref("");
+const previewOpen = ref(false);
+const discardOpen = ref(false);
+const invalidTitle = ref(false);
+const baseline = ref("");
+let pendingLeave: ((allow: boolean) => void) | undefined;
+const projectsLoading = ref(false);
+const projectLoadError = ref("");
+let disposed = false;
+let loadVersion = 0;
+const snapshot = () =>
+  JSON.stringify([
+    form.title,
+    form.summary,
+    form.content,
+    form.projectId,
+    form.type,
+  ]);
+const dirty = computed(
+  () => contextReady.value && snapshot() !== baseline.value,
+);
+const busy = computed(
+  () => loading.value || saving.value || uploading.value > 0,
+);
+const wordCount = computed(
+  () => stripHtml(form.content).replace(/\s/g, "").length,
+);
+function beforeUnload(event: BeforeUnloadEvent) {
+  if (dirty.value || saving.value || uploading.value) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+}
+function confirmLeave() {
+  if (saving.value) return false;
+  if (!dirty.value && !uploading.value) {
+    cancelImageUploads();
+    return true;
+  }
+  discardOpen.value = true;
+  return new Promise<boolean>((resolve) => {
+    pendingLeave = resolve;
+  });
+}
+onBeforeRouteLeave(confirmLeave);
+onBeforeRouteUpdate(confirmLeave);
+watch(
+  () => [
+    route.query.id,
+    route.query.projectId,
+    route.query.type,
+    route.query.mode,
+  ],
+  () => {
+    if (
+      currentDocument.value &&
+      String(currentDocument.value.id) === route.query.id
+    )
+      return;
+    resetContext();
+    void initialize();
+  },
+);
+watch(discardOpen, (open) => {
+  if (!open) {
+    pendingLeave?.(false);
+    pendingLeave = undefined;
+  }
+});
+function resetContext() {
+  loadVersion++;
+  loading.value = false;
+  templateRequest?.abort();
+  templateVersion++;
+  contextReady.value = false;
+  currentDocument.value = null;
+  form.title = "";
+  form.summary = "";
+  form.content = "";
+  form.status = "draft";
+  templateMessage.value = "";
+  templateError.value = "";
+  message.value = "";
+  errorMessage.value = "";
+  invalidTitle.value = false;
+  syncEditorHtml();
+}
+function discardChanges() {
+  cancelImageUploads();
+  const resolve = pendingLeave;
+  pendingLeave = undefined;
+  discardOpen.value = false;
+  resolve?.(true);
+}
 const message = ref("");
 const errorMessage = ref("");
 const currentDocument = ref<DocumentItem | null>(null);
@@ -257,25 +521,60 @@ const templateMessage = ref("");
 const templateError = ref("");
 let templateRequest: AbortController | undefined;
 let templateVersion = 0;
-let lastTemplateContent = "";
 
 const form = reactive({
   title: "",
   projectId: "",
-  type: "environment",
+  type: "general",
   summary: "",
   status: "draft" as "draft" | "published",
   content: "",
 });
 
 const docTypeOptions = documentTypes;
+// Preserve the option keyed by ID when its asynchronous label resolves.
+const availableProjectOptions = computed(() => {
+  if (
+    !form.projectId ||
+    projectOptions.value.some((item) => item.value === form.projectId)
+  )
+    return projectOptions.value;
+  return [
+    { value: form.projectId, label: "项目 #" + form.projectId },
+    ...projectOptions.value,
+  ];
+});
+const selectedProject = computed({
+  get: () => form.projectId || "__none__",
+  set: (value: string) => {
+    form.projectId = value === "__none__" ? "" : value;
+  },
+});
 
 const toolbarConfig: Partial<IToolbarConfig> = {
-  excludeKeys: ["group-video", "fullScreen"],
+  toolbarKeys: [
+    "headerSelect",
+    "|",
+    "bold",
+    "italic",
+    "underline",
+    "|",
+    "bulletedList",
+    "numberedList",
+    "blockquote",
+    "|",
+    "insertLink",
+    "insertTable",
+    "codeBlock",
+    "uploadImage",
+    "|",
+    "undo",
+    "redo",
+  ],
 };
 
 const editorConfig: Partial<IEditorConfig> = {
-  placeholder: "编写项目介绍、环境说明、部署步骤、API 说明、FAQ 等真实内容...",
+  placeholder: "从这里开始写正文…",
   scroll: false,
   MENU_CONF: {
     uploadImage: {
@@ -285,7 +584,7 @@ const editorConfig: Partial<IEditorConfig> = {
         file: File,
         insertFn: (url: string, alt: string, href: string) => void,
       ) {
-        if (saving.value) return;
+        if (saving.value || loading.value || !contextReady.value) return;
         const controller = new AbortController();
         const editor = editorRef.value;
         const documentRoute = route.fullPath;
@@ -299,12 +598,22 @@ const editorConfig: Partial<IEditorConfig> = {
               if (!controller.signal.aborted) imageStatus.value = status;
             },
           });
-          if (controller.signal.aborted || editorRef.value !== editor || route.fullPath !== documentRoute) return;
+          if (
+            controller.signal.aborted ||
+            editorRef.value !== editor ||
+            route.fullPath !== documentRoute
+          )
+            return;
           insertFn(result.url, file.name, "");
-          imageStatus.value = result.reused ? "图片已存在，已复用并插入" : "图片已上传并插入";
+          imageStatus.value = result.reused
+            ? "图片已存在，已复用并插入"
+            : "图片已上传并插入";
         } catch (error) {
           if (!controller.signal.aborted) {
-            imageError.value = error instanceof Error ? error.message : "图片上传失败，请重新选择图片重试";
+            imageError.value =
+              error instanceof Error
+                ? error.message
+                : "图片上传失败，请重新选择图片重试";
             imageStatus.value = "";
           }
         } finally {
@@ -316,7 +625,7 @@ const editorConfig: Partial<IEditorConfig> = {
   },
   onChange(editor: IDomEditor) {
     if (!isSyncingEditor.value) {
-      form.content = editor.getHtml();
+      form.content = editor.isEmpty() ? "" : editor.getHtml();
     }
   },
 };
@@ -327,20 +636,23 @@ async function uploadFromPicker(event: Event) {
   input.value = "";
   const editor = editorRef.value;
   if (!file || !editor) return;
-  await editorConfig.MENU_CONF?.uploadImage?.customUpload(file, (url: string, alt: string) => {
-    editor.restoreSelection();
-    editor.focus();
-    const image = document.createElement("img");
-    image.src = url;
-    image.alt = alt;
-    editor.dangerouslyInsertHtml(image.outerHTML);
-  });
+  await editorConfig.MENU_CONF?.uploadImage?.customUpload(
+    file,
+    (url: string, alt: string) => {
+      editor.restoreSelection();
+      editor.focus();
+      const image = document.createElement("img");
+      image.src = url;
+      image.alt = alt;
+      editor.dangerouslyInsertHtml(image.outerHTML);
+    },
+  );
 }
 
 const selectedProjectName = computed(() => {
   return (
     projectOptions.value.find((item) => item.value === form.projectId)?.label ||
-    "未选择项目"
+    (form.projectId ? `项目 #${form.projectId}` : "不关联项目")
   );
 });
 
@@ -359,82 +671,124 @@ const previewHtml = computed(
 );
 
 onMounted(async () => {
-  await loadProjects();
-  await hydrateFromRoute();
+  window.addEventListener("beforeunload", beforeUnload);
   await nextTick();
-  mountWangEditor();
+  if (!disposed) mountWangEditor();
+  await initialize();
 });
-
 onBeforeUnmount(() => {
+  disposed = true;
+  window.removeEventListener("beforeunload", beforeUnload);
+  pendingLeave?.(false);
   templateRequest?.abort();
   templateVersion++;
   cancelImageUploads();
-  toolbarRef.value?.destroy();
-  editorRef.value?.destroy();
+  destroyRichEditor(editorRef.value, toolbarRef.value);
 });
-
+watch([contextReady, busy], () => {
+  if (!editorRef.value) return;
+  if (contextReady.value && !busy.value) editorRef.value.enable();
+  else editorRef.value.disable();
+});
 watch(
   () => form.type,
   () => {
-    if (!currentDocument.value && !loading.value) {
+    if (contextReady.value && !loading.value && !currentDocument.value)
       void applyTemplateIfEmpty();
-    }
   },
 );
-
+watch(
+  () => form.title,
+  () => {
+    invalidTitle.value = false;
+  },
+);
 async function loadProjects() {
-  const res = await getProjects({ page: 1, pageSize: 100 });
-  projectOptions.value = res.data.list.map((project) => ({
-    label: project.name,
-    value: String(project.id),
-  }));
-}
-
-async function hydrateFromRoute() {
-  loading.value = true;
-  errorMessage.value = "";
+  projectsLoading.value = true;
+  projectLoadError.value = "";
   try {
-    const projectId = String(route.query.projectId || "");
-    const type = String(route.query.type || "");
-    if (projectId) {
-      form.projectId = projectId;
-    } else if (projectOptions.value[0]) {
-      form.projectId = projectOptions.value[0].value;
+    const options: Array<{ label: string; value: string }> = [];
+    let page = 1;
+    while (true) {
+      const res = await getProjects({ page, pageSize: 100 });
+      if (disposed) return;
+      options.push(
+        ...res.data.list.map((project) => ({
+          label: project.name,
+          value: String(project.id),
+        })),
+      );
+      if (!res.data.list.length || options.length >= res.data.total) break;
+      page++;
     }
-    if (type) {
-      form.type = type;
-    }
-
-    if (form.projectId && form.type) {
-      await loadExistingDocument(Number(form.projectId), form.type);
-    }
-    if (!currentDocument.value) {
-      await applyTemplateIfEmpty();
-    }
+    projectOptions.value = options;
+  } catch (error) {
+    if (!disposed)
+      projectLoadError.value =
+        error instanceof Error ? error.message : "项目列表加载失败";
   } finally {
-    loading.value = false;
+    if (!disposed) projectsLoading.value = false;
   }
 }
-
-async function loadExistingDocument(projectId: number, type: string) {
+async function initialize() {
+  const version = ++loadVersion;
+  loading.value = true;
+  loadError.value = "";
+  if (!projectOptions.value.length && !projectsLoading.value)
+    void loadProjects();
   try {
-    const res = await getProjectDocument(projectId, type);
-    fillDocument(res.data);
-  } catch {
-    const list = await getDocuments({ projectId, type, page: 1, pageSize: 1 });
-    const firstDocument = list.data.list[0];
-    if (firstDocument) {
-      fillDocument(firstDocument);
-      return;
+    const id = Number(route.query.id || 0);
+    const projectId = Number(route.query.projectId || 0);
+    const type = String(route.query.type || "general");
+    form.projectId = projectId > 0 ? String(projectId) : "";
+    form.type = docTypeOptions.some((t) => t.value === type) ? type : "general";
+    let document: DocumentItem | null = null;
+    if (route.query.id) {
+      if (!Number.isInteger(id) || id <= 0) throw new Error("无效的文档 ID");
+      document = (await getDocument(id)).data;
+      if (!document) throw new Error("文档不存在");
+    } else if (
+      projectId > 0 &&
+      route.query.type &&
+      route.query.mode !== "create"
+    ) {
+      try {
+        document = (await getProjectDocument(projectId, form.type)).data;
+      } catch (error) {
+        if (
+          (error instanceof ApiResponseError
+            ? error.code
+            : (error as { response?: { status?: number } }).response
+                ?.status) !== 404
+        )
+          throw error;
+      }
     }
-    currentDocument.value = null;
+    if (disposed || version !== loadVersion) return;
+    if (document) fillDocument(document);
+    baseline.value = snapshot();
+    contextReady.value = true;
+    syncEditorHtml();
+  } catch (error) {
+    if (!disposed && version === loadVersion)
+      loadError.value =
+        error instanceof Error ? error.message : "文档加载失败，请重试";
+  } finally {
+    if (!disposed && version === loadVersion) loading.value = false;
   }
+  if (
+    !disposed &&
+    version === loadVersion &&
+    contextReady.value &&
+    !currentDocument.value
+  )
+    await applyTemplateIfEmpty();
 }
 
 function fillDocument(document: DocumentItem) {
   currentDocument.value = document;
   form.title = document.title;
-  form.projectId = String(document.projectId);
+  form.projectId = document.projectId ? String(document.projectId) : "";
   form.type = document.type;
   form.summary = document.summary;
   form.status = document.status === "published" ? "published" : "draft";
@@ -450,8 +804,10 @@ async function applyTemplateIfEmpty() {
   templateLoading.value = false;
   templateError.value = "";
   templateMessage.value = "";
-  const hasContent = stripHtml(form.content) || /<(img|table|hr|video|audio)\b/i.test(form.content);
-  if (currentDocument.value || (hasContent && form.content !== lastTemplateContent)) return;
+  const hasContent =
+    stripHtml(form.content) ||
+    /<(img|table|hr|video|audio)\b/i.test(form.content);
+  if (currentDocument.value || hasContent) return;
   const type = form.type;
   const before = form.content;
   const controller = new AbortController();
@@ -459,14 +815,28 @@ async function applyTemplateIfEmpty() {
   templateLoading.value = true;
   try {
     const res = await getActiveTemplate(type, controller.signal);
-    if (version !== templateVersion || controller.signal.aborted || currentDocument.value || form.type !== type || form.content !== before) return;
+    if (
+      version !== templateVersion ||
+      controller.signal.aborted ||
+      currentDocument.value ||
+      form.type !== type ||
+      form.content !== before
+    )
+      return;
+    const untouched = snapshot() === baseline.value;
     form.content = res.data?.content || "";
-    lastTemplateContent = form.content;
-    if (!form.title) form.title = `${selectedProjectName.value}${selectedDocTypeLabel.value}`;
-    templateMessage.value = res.data ? `已使用模板「${res.data.name}」，可直接修改正文。` : "此类型暂无启用模板，请直接编写正文。";
+
+    templateMessage.value = res.data
+      ? `已使用模板「${res.data.name}」，可直接修改正文。`
+      : "";
     syncEditorHtml();
+    if (untouched) baseline.value = snapshot();
   } catch (error) {
-    if (version === templateVersion && !controller.signal.aborted) templateError.value = error instanceof Error ? error.message : "模板读取失败，可重试或直接编写正文";
+    if (version === templateVersion && !controller.signal.aborted)
+      templateError.value =
+        error instanceof Error
+          ? error.message
+          : "模板读取失败，可重试或直接编写正文";
   } finally {
     if (version === templateVersion) templateLoading.value = false;
   }
@@ -481,25 +851,28 @@ async function publishDocument() {
 }
 
 async function save(status: "draft" | "published") {
+  if (saving.value || loading.value || !contextReady.value) return;
   if (uploading.value) {
     errorMessage.value = "请等待图片处理完成，或取消上传后再保存";
     return;
   }
   message.value = "";
   errorMessage.value = "";
-  if (!form.projectId) {
-    errorMessage.value = "请选择所属项目";
-    return;
-  }
   if (!form.title.trim()) {
-    errorMessage.value = "文档标题不能为空";
+    invalidTitle.value = true;
+    errorMessage.value = "请填写文档标题后再保存";
+    document.getElementById("document-title")?.focus();
     return;
   }
 
+  templateRequest?.abort();
+  templateVersion++;
+  templateLoading.value = false;
   saving.value = true;
   try {
     const res = await saveDocument({
-      projectId: Number(form.projectId),
+      id: currentDocument.value?.id,
+      projectId: form.projectId ? Number(form.projectId) : null,
       type: form.type,
       title: form.title.trim(),
       summary: form.summary.trim() || buildSummary(form.content),
@@ -507,7 +880,13 @@ async function save(status: "draft" | "published") {
       status,
     });
     fillDocument(res.data);
+    baseline.value = snapshot();
     message.value = status === "published" ? "文档已发布" : "草稿已保存";
+    saving.value = false;
+    await router.replace({
+      path: "/documents/editor",
+      query: { id: String(res.data.id) },
+    });
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : "保存文档失败";
@@ -555,6 +934,10 @@ function mountWangEditor() {
 
   editorRef.value = editor;
   toolbarRef.value = toolbar;
+  if (!contextReady.value || busy.value) editor.disable();
+  editorContainerRef.value
+    .querySelector("[data-slate-editor]")
+    ?.setAttribute("aria-label", "文档正文");
 }
 
 function syncEditorHtml() {
@@ -567,3 +950,48 @@ function syncEditorHtml() {
   isSyncingEditor.value = false;
 }
 </script>
+
+<style scoped>
+.document-composer {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+  max-width: 1120px;
+  margin-inline: auto;
+}
+:deep(.page-header) {
+  margin-bottom: 0;
+}
+.composer-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.composer-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: end;
+}
+.composer-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding-bottom: 24px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .document-composer {
+    gap: 16px;
+  }
+  .composer-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .composer-context {
+    flex-wrap: wrap;
+  }
+}
+</style>

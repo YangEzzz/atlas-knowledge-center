@@ -140,9 +140,9 @@ func TestManagementLifecycle(t *testing.T) {
 	}
 	dRepo := repository.NewDocumentRepository(tx)
 	ds := service.NewDocumentService(dRepo)
-	d, err := ds.Save(service.DocumentSaveInput{ProjectID: p.ID, Type: "intro", Title: key + "-doc", Content: "<p>body</p>", Status: "draft"}, user)
+	d, err := ds.Save(service.DocumentSaveInput{ProjectID: &p.ID, Type: "intro", Title: key + "-doc", Content: "<p>body</p>", Status: "draft"}, user)
 	must(err)
-	_, err = ds.Save(service.DocumentSaveInput{ProjectID: p.ID, Type: "intro", Title: key + "-doc", Content: "<p>changed</p>", Status: "published"}, user)
+	_, err = ds.Save(service.DocumentSaveInput{ID: d.ID, ProjectID: &p.ID, Type: "intro", Title: key + "-doc", Content: "<p>changed</p>", Status: "published"}, user)
 	must(err)
 	versions, err := ds.ListVersions(d.ID)
 	must(err)

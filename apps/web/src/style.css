@@ -2787,8 +2787,26 @@ a {
 /* Atlas navigation system — canonical values: /design-spec.md */
 html {
   color-scheme: light;
+}
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+#app {
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
   scrollbar-gutter: stable;
   scroll-padding-top: 80px;
+}
+@media print {
+  html,
+  body,
+  #app {
+    height: auto;
+    overflow: visible;
+  }
 }
 * {
   scrollbar-width: thin;

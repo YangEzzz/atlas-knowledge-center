@@ -3,10 +3,21 @@ import { useAuthStore } from '@/store/auth'
 import { getCurrentUser } from '@/api/auth'
 import { clearLegacyAuth, safeReturnPath } from '@/utils/session'
 import { canManage } from '@/utils/management-access'
+import { cancelPageScrollRestoration, restorePageScroll } from '@/utils/page-scroll'
 import { toast } from 'vue-sonner'
+
+const pageScrollPositions = new Map<number, { top: number, left: number }>()
+let currentHistoryPosition = window.history.state?.position ?? 0
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior: (_, __, savedPosition) => {
+    const position = savedPosition
+      ? pageScrollPositions.get(window.history.state?.position) || { top: 0, left: 0 }
+      : { top: 0, left: 0 }
+    restorePageScroll(position)
+    return false
+  },
   routes: [
     {
       path: '/auth/sso/complete',
@@ -78,6 +89,17 @@ const router = createRouter({
       ],
     },
   ],
+})
+
+router.beforeEach(() => {
+  cancelPageScrollRestoration()
+  const viewport = document.getElementById('app')
+  if (viewport)
+    pageScrollPositions.set(currentHistoryPosition, { top: viewport.scrollTop, left: viewport.scrollLeft })
+})
+router.afterEach((_, __, failure) => {
+  if (!failure)
+    currentHistoryPosition = window.history.state?.position ?? 0
 })
 
 router.beforeEach(async (to) => {

@@ -124,10 +124,11 @@ function record(p: Project) {
 function toggle() {
   if (project.value) toggleFavorite(record(project.value));
 }
-function newDocument(type = "intro") {
+function newDocument(type = "general") {
+  if (!project.value) return;
   router.push({
     path: "/documents/editor",
-    query: { projectId: String(project.value?.id), type },
+    query: { projectId: String(project.value.id), type, mode: "create" },
   });
 }
 async function copy(url: string) {
@@ -323,7 +324,7 @@ async function saved(p: Project) {
                         variant="ghost"
                         size="icon"
                         :aria-label="`编辑${doc.title}`"
-                        @click="newDocument(doc.type)"
+                        @click="router.push({ path: '/documents/editor', query: { id: String(doc.id) } })"
                         ><FilePenLine
                       /></Button>
                     </div>
@@ -343,7 +344,7 @@ async function saved(p: Project) {
                       /></Button>
                     </div>
                     <div
-                      v-if="!loading && missingDocTypes.length"
+                      v-if="!loading && !documentError && missingDocTypes.length"
                       class="missing-document-types"
                     >
                       <span>待补充</span

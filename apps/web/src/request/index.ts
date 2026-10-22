@@ -58,13 +58,23 @@ function errorHandler(error: RequestError): Promise<never> {
   return Promise.reject(error);
 }
 
+export class ApiResponseError extends Error {
+  constructor(
+    public readonly code: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiResponseError";
+  }
+}
+
 function responseHandler(response: AxiosResponse<ResponseData>) {
   const body = response.data;
   if (!body) {
     throw new Error("请求没有返回值");
   }
   if (body.code !== 200) {
-    throw new Error(body.message || "请求失败");
+    throw new ApiResponseError(body.code, body.message || "请求失败");
   }
   return body;
 }

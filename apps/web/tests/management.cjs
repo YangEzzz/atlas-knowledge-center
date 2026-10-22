@@ -7,6 +7,7 @@ async function run() {
     viewport: { width: 1440, height: 1000 },
     locale: "zh-CN",
   });
+  page.on("dialog", dialog => dialog.accept()); // Isolated fixture reloads may leave edited content.
   const errors = [];
   page.on("pageerror", (err) => errors.push(err.message));
   await page.route("**/api/v1/**", (route) =>
@@ -202,22 +203,12 @@ async function run() {
         exact: true,
       })
       .waitFor();
-    await goto("/documents/editor?projectId=103&type=faq", "template-slow");
-    await page.locator("[data-slate-editor]").waitFor();
-    await page.getByRole("combobox").nth(1).click();
-    await page.getByRole("option", { name: "环境说明", exact: true }).click();
-    await page
-      .locator("[data-slate-editor]")
-      .fill("正在编写的正文不能被模板覆盖");
+    await goto("/documents/editor?projectId=103&type=environment", "template-slow");
+    await page.getByLabel("文档标题", { exact: false }).waitFor();
+    await page.locator("[data-slate-editor]").fill("正在编写的正文不能被模板覆盖");
     await page.waitForTimeout(1700);
-    assert.match(
-      await page.locator("[data-slate-editor]").innerText(),
-      /正在编写的正文不能被模板覆盖/,
-    );
-    assert.doesNotMatch(
-      await page.locator("[data-slate-editor]").innerText(),
-      /团队模板正文/,
-    );
+    assert.match(await page.locator("[data-slate-editor]").innerText(), /正在编写的正文不能被模板覆盖/);
+    assert.doesNotMatch(await page.locator("[data-slate-editor]").innerText(), /团队模板正文/);
     await goto("/manage", "management-slow");
     await page.locator('[aria-busy="true"]').waitFor();
     await page.getByText("团队环境说明模板", { exact: true }).waitFor();

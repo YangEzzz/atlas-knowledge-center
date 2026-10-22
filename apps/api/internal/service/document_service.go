@@ -25,7 +25,7 @@ type DocumentService struct {
 
 type DocumentDTO struct {
 	ID               uint       `json:"id"`
-	ProjectID        uint       `json:"projectId"`
+	ProjectID        *uint      `json:"projectId"`
 	Type             string     `json:"type"`
 	TypeLabel        string     `json:"typeLabel"`
 	Title            string     `json:"title"`
@@ -53,7 +53,8 @@ type DocumentVersionDTO struct {
 }
 
 type DocumentSaveInput struct {
-	ProjectID uint   `json:"projectId"`
+	ID        uint   `json:"id"`
+	ProjectID *uint  `json:"projectId"`
 	Type      string `json:"type"`
 	Title     string `json:"title"`
 	Summary   string `json:"summary"`
@@ -104,23 +105,35 @@ func (s *DocumentService) GetByProjectAndType(projectID uint, docType string) (*
 }
 
 func (s *DocumentService) Save(input DocumentSaveInput, actorID *uint) (*DocumentDTO, error) {
-	if input.ProjectID == 0 || strings.TrimSpace(input.Type) == "" || strings.TrimSpace(input.Title) == "" {
-		return nil, errors.New("projectId、type 和 title 不能为空")
+	if strings.TrimSpace(input.Type) == "" || strings.TrimSpace(input.Title) == "" {
+		return nil, errors.New("type 和 title 不能为空")
 	}
-
+	if input.ProjectID != nil && *input.ProjectID == 0 {
+		return nil, errors.New("关联项目无效，不关联项目请传 null")
+	}
 	docType := strings.TrimSpace(input.Type)
 	status := normalizeDocumentStatus(input.Status)
-	document, err := s.repo.FindByProjectAndType(input.ProjectID, docType)
-	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
+	var document *models.ProjectDocument
+	if input.ID > 0 {
+		var err error
+		document, err = s.repo.FindByID(input.ID)
+		if err != nil {
 			return nil, err
 		}
-		document = &models.ProjectDocument{
-			ProjectID: input.ProjectID,
-			Type:      docType,
-			CreatedBy: actorID,
+	} else {
+		document = &models.ProjectDocument{CreatedBy: actorID}
+	}
+	if input.ProjectID != nil {
+		existing, err := s.repo.FindByProjectAndType(*input.ProjectID, docType)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		if err == nil && existing.ID != document.ID {
+			return nil, errors.New("该项目已有同类型文档，请从文档库打开后编辑")
 		}
 	}
+	document.ProjectID = input.ProjectID
+	document.Type = docType
 
 	document.Title = strings.TrimSpace(input.Title)
 	document.Summary = strings.TrimSpace(input.Summary)
@@ -362,6 +375,7 @@ func documentStatusLabel(status string) string {
 
 func documentTypeLabel(value string) string {
 	labels := map[string]string{
+		"general":     "通用文档",
 		"intro":       "项目介绍",
 		"environment": "环境说明",
 		"deploy":      "部署说明",

@@ -1,6 +1,7 @@
 import { api } from "@/request";
 
 export const documentTypes = [
+  { value: "general", label: "通用文档" },
   { value: "intro", label: "项目介绍" },
   { value: "environment", label: "环境说明" },
   { value: "deploy", label: "部署说明" },

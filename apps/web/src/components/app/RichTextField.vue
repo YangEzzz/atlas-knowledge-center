@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import "@wangeditor/editor/dist/css/style.css";
+import { destroyRichEditor } from "@/utils/destroy-rich-editor";
 import { onMounted, onBeforeUnmount, ref, shallowRef, watch } from "vue";
 import {
   createEditor,
@@ -65,8 +66,7 @@ watch(
   (disabled) => (disabled ? editor.value?.disable() : editor.value?.enable()),
 );
 onBeforeUnmount(() => {
-  bar?.destroy();
-  editor.value?.destroy();
+  destroyRichEditor(editor.value, bar);
 });
 </script>
 <template>

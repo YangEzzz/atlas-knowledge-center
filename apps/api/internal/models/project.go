@@ -57,7 +57,7 @@ type ProjectEntry struct {
 
 type ProjectDocument struct {
 	ID               uint              `gorm:"primaryKey" json:"id"`
-	ProjectID        uint              `gorm:"not null;index;uniqueIndex:idx_project_document_type" json:"project_id"`
+	ProjectID        *uint             `gorm:"index;uniqueIndex:idx_project_document_type" json:"project_id"`
 	Type             string            `gorm:"size:80;not null;index;uniqueIndex:idx_project_document_type" json:"type"`
 	Title            string            `gorm:"size:200;not null;index" json:"title"`
 	Summary          string            `gorm:"size:500" json:"summary"`

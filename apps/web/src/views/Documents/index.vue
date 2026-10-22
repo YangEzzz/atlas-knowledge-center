@@ -1,10 +1,10 @@
 <template>
   <PageHeader
     title="文档库"
-    description="查找项目介绍、环境说明、部署指南、API 和开发规范。"
+    description="查找通用知识和项目文档，也可以直接新建不关联项目的文档。"
   >
     <template #actions>
-      <Button @click="goEditor">
+      <Button @click="goEditor()">
         <FilePenLine class="button-icon" />
         新建文档
       </Button>
@@ -41,7 +41,7 @@
       <div class="document-filter-bar">
         <Input
           v-model="filters.keyword"
-          placeholder="搜索标题、正文、项目、负责人"
+          placeholder="搜索标题、摘要和正文"
           @keyup.enter="loadDocuments"
         />
         <UiSelect v-model="selectedDocType">
@@ -110,9 +110,9 @@
         v-if="!loading && filteredRows.length === 0"
         :icon="BookMarked"
         title="暂无文档"
-        description="先从项目详情页或文档编辑器创建第一篇富文本文档。"
+        description="创建第一篇文档，项目关联为选填。"
       >
-        <Button @click="goEditor">
+        <Button @click="goEditor()">
           <FilePenLine class="button-icon" />
           新建文档
         </Button>
@@ -158,10 +158,12 @@
               <div class="document-project-name">
                 {{ projectName(row.projectId) }}
               </div>
-              <div class="document-project-meta">项目文档</div>
+              <div class="document-project-meta">
+                {{ row.projectId ? "项目文档" : "通用文档" }}
+              </div>
             </td>
             <td class="document-maintain-cell">
-              <div>研发用户</div>
+              <div>最后更新</div>
               <span>{{ formatDate(row.updatedAt) }}</span>
             </td>
             <td class="document-status-cell">
@@ -265,6 +267,12 @@ const selectedStatus = computed({
 });
 
 const docTypes = [
+  {
+    name: "通用文档",
+    value: "general",
+    description: "团队知识和通用指南",
+    icon: BookMarked,
+  },
   {
     name: "项目介绍",
     value: "intro",
@@ -377,8 +385,7 @@ function goEditor(row?: DocumentItem) {
     router.push({
       path: "/documents/editor",
       query: {
-        projectId: String(row.projectId),
-        type: row.type,
+        id: String(row.id),
       },
     });
     return;
@@ -390,7 +397,8 @@ function goDocument(id: number) {
   router.push({ name: "DocumentDetail", params: { id } });
 }
 
-function projectName(projectId: number) {
+function projectName(projectId: number | null) {
+  if (!projectId) return "不关联项目";
   return (
     projects.value.find((project) => project.id === projectId)?.name ||
     `项目 #${projectId}`
